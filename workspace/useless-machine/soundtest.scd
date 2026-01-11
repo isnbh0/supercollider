@@ -260,22 +260,16 @@
     ~genReverb = 0.0;  // 0.0 = dry, 1.0 = full reverb send
 
     // Modified sampler with attack/release envelope to prevent clicks
-    // Supports both mono and stereo samples (stereo mixed to mono for panning)
     SynthDef(\gen_sampler, {|sample = 0, start = 0, dur = 1, rate = 1, amp = 1.0, pan = 0.0, fade = 0.005, rev = 0.0|
         var srate = BufSampleRate.kr(sample);
         var frames = BufFrames.kr(sample);
         var startPos = frames * start;
-        // Line.ar duration is in seconds, so sample rate mismatch is handled correctly
         var phase = Line.ar(startPos, startPos + (srate * dur), dur * rate.abs.reciprocal);
         // Envelope with attack and release to prevent clicks
-        // Minimum 1ms floor to avoid known SC bug with very short envelopes
-        var fadeIn = max(0.001, min(fade, dur * 0.3));
-        var fadeOut = max(0.001, min(fade, dur * 0.3));
+        var fadeIn = min(fade, dur * 0.3);
+        var fadeOut = min(fade, dur * 0.3);
         var env = Env([0, 1, 1, 0], [fadeIn, dur - fadeIn - fadeOut, fadeOut], \sin).ar(Done.freeSelf);
-        // Read stereo (works for mono too - mono buffers return same signal on both channels)
-        var sigStereo = BufRd.ar(2, sample, phase);
-        // Mix to mono for panning (handles both mono and stereo samples)
-        var sig = Mix.ar(sigStereo) * 0.5 * env * amp;
+        var sig = BufRd.ar(1, sample, phase) * env * amp;
         sig = Pan2.ar(sig, pan);
         Out.ar(0, sig);
         Out.ar(~reverbBus, sig * rev);

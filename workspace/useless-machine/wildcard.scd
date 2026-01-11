@@ -31,6 +31,10 @@
         "오류: 샘플 없음 - ~boot.() 먼저 실행하세요".postln;
         ^false;
     });
+    if(~sampleRegistry.isNil or: { ~sampleRegistry.size == 0 }, {
+        "오류: 샘플 레지스트리 없음 - ~boot.() 먼저 실행하세요".postln;
+        ^false;
+    });
     true;
 };
 
@@ -115,10 +119,10 @@
     var result, char, flipped;
     result = "";
     str.do {|c, idx|
-        // Random case flip (check if uppercase A-Z: 65-90, lowercase a-z: 97-122)
+        // Random case flip using proper Char methods
         flipped = if(0.3.coin, {
-            if((c >= 65) && (c <= 90), { c.toLower }, {
-                if((c >= 97) && (c <= 122), { c.toUpper }, { c })
+            if(c.isUpper, { c.toLower }, {
+                if(c.isLower, { c.toUpper }, { c })
             })
         }, { c });
         result = result ++ flipped.asString;
@@ -237,8 +241,18 @@
 ~wildcardSample = {
     var oldInfo = ~sampleRegistry.detect {|s| s.buffer == ~genSample };
     var newInfo = ~sampleRegistry.choose;
+    var oldName;
 
-    // Avoid same sample
+    // Guard: need at least 2 samples to switch
+    if(~sampleRegistry.size < 2, {
+        ~wildcardSpam.(">>> WILDCARD 샘플: 전환할 샘플 부족 / not enough samples <<<");
+        ^nil;
+    });
+
+    // Handle case where current sample isn't in registry
+    oldName = if(oldInfo.notNil, { oldInfo.name }, { "???" });
+
+    // Avoid same sample (safe now that we know size >= 2)
     while { newInfo.buffer == ~genSample } { newInfo = ~sampleRegistry.choose };
 
     // WILDCARD: SAMPLE MUTATION
@@ -247,7 +261,7 @@
     ~wildcardBanner.([
         "========================================",
         "   WILDCARD 샘플 전환",
-        "   " ++ oldInfo.name ++ " --> " ++ newInfo.name,
+        "   " ++ oldName ++ " --> " ++ newInfo.name,
         "   다른 소리가 들린다...",
         "========================================"
     ]);
@@ -576,8 +590,7 @@
                 };
 
                 ~wildcardRunning = false;
-                ~wildcardRoutine.stop;
-                ~wildcardRoutine = nil;
+                ^nil;  // Exit routine
             });
 
             interval.wait;
