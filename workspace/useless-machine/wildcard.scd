@@ -20,6 +20,12 @@
 //   5. GLITCH   - 글리치: 글리치 모드 강제 활성화
 // ================================================================================
 
+// Guard: Prevent reload while wildcard is running (would orphan the routine)
+if(~wildcardRunning == true, {
+    "WARNING: Wildcard is running! Use ~wildcardStop.() first, then reload.".postln;
+    "경고: 와일드카드 실행 중! 먼저 ~wildcardStop.() 실행 후 다시 로드하세요.".postln;
+}, {
+// Main definition block (only executes if not running)
 (
 // === VERIFICATION ===
 ~wildcardVerify = {
@@ -544,7 +550,7 @@
                 );
             });
 
-            // Final moments - spawn synth flood
+            // Final moments - spawn synth flood (rate-limited)
             if(progress > 0.9, {
                 ~wildcardBanner.([
                     "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
@@ -553,18 +559,22 @@
                     "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
                 ]);
 
-                // Synth flood
-                20.do {
-                    Synth(\gen_sampler, [
-                        \sample, ~samplePack.choose,
-                        \start, 1.0.rand,
-                        \dur, rrand(0.01, 0.5),
-                        \amp, rrand(0.3, 0.8),
-                        \pan, 1.0.rand2,
-                        \fade, 0.001,
-                        \rev, 1.0.rand,
-                    ]);
-                };
+                // Synth flood - rate limited to prevent server overload
+                // Guard: only spawn if samplePack has samples
+                if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
+                    20.do {
+                        Synth(\gen_sampler, [
+                            \sample, ~samplePack.choose,
+                            \start, 1.0.rand,
+                            \dur, rrand(0.01, 0.5),
+                            \amp, rrand(0.3, 0.8),
+                            \pan, 1.0.rand2,
+                            \fade, 0.001,
+                            \rev, 1.0.rand,
+                        ]);
+                        0.02.wait;  // 20ms between spawns to prevent flood
+                    };
+                });
             });
 
             // Crash point
@@ -578,19 +588,25 @@
                     "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
                 ]);
 
-                // Final synth flood to overload
-                100.do {|j|
-                    Synth(\gen_sampler, [
-                        \sample, ~samplePack.choose,
-                        \start, 1.0.rand,
-                        \dur, rrand(0.5, 5),
-                        \amp, 0.5,
-                        \pan, 1.0.rand2,
-                        \fade, 0.001,
-                        \rev, 1.0,
-                    ]);
-                    ("신스 " ++ j ++ " 생성됨 / SYNTH SPAWNED").postln;
-                };
+                // Final synth flood - rate limited (50 synths instead of 100)
+                // Guard: only spawn if samplePack has samples
+                if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
+                    50.do {|j|
+                        Synth(\gen_sampler, [
+                            \sample, ~samplePack.choose,
+                            \start, 1.0.rand,
+                            \dur, rrand(0.5, 5),
+                            \amp, 0.5,
+                            \pan, 1.0.rand2,
+                            \fade, 0.001,
+                            \rev, 1.0,
+                        ]);
+                        if(j % 10 == 0, {
+                            ("신스 " ++ j ++ " 생성됨 / SYNTH SPAWNED").postln;
+                        });
+                        0.01.wait;  // 10ms between spawns to prevent server crash
+                    };
+                });
 
                 ~wildcardRunning = false;
                 ~wildcardRoutine.stop;
@@ -607,6 +623,7 @@
 "=== WILDCARD 로드됨 ===".postln;
 "컨트롤: ~wildcardStart.(), ~wildcardStop.(), ~wildcardSetLevel.(1-5), ~wildcardCoda.(), ~wildcardRecover.()".postln;
 )
+}); // End of reload guard if-block
 
 // ==================== CONTROLS ====================
 

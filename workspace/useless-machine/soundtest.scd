@@ -82,6 +82,22 @@
         // Wait for all buffers to finish loading before accessing their properties
         s.sync;
 
+        // Validate loaded buffers - remove any that failed to load
+        ~samplePack = ~samplePack.select({|buf, i|
+            var valid = buf.numFrames > 0;
+            if(valid.not, {
+                ("WARNING: Buffer " ++ i ++ " failed to load (0 frames)").postln;
+            });
+            valid;
+        });
+
+        if(~samplePack.size == 0, {
+            "ERROR: No samples loaded! Check samplepack directory.".postln;
+            ^nil;
+        });
+
+        ("Loaded " ++ ~samplePack.size ++ " samples successfully").postln;
+
         // --- Loop Points Override ---
         // Each sample gets [loopStart, loopEnd] normalized to 0.0-1.0
         // Default: full sample range
@@ -156,8 +172,8 @@
         ^nil;
     });
 
-    // Configuration
-    ~genSample = ~samplePack[6];
+    // Configuration - use bounds-safe index (prefer index 6, fallback to last available)
+    ~genSample = ~samplePack[6.min(~samplePack.size - 1)];
     ~genStartPos = 0.0;
     ~genStartRange = 0.0;
 
@@ -278,26 +294,37 @@
     ~genReverb = 0.0;  // 0.0 = dry, 1.0 = full reverb send
 
     // Modified sampler with attack/release envelope to prevent clicks
-    // Supports both mono and stereo samples (stereo mixed to mono for panning)
+    // Reads mono from buffer (safe for both mono and stereo - reads first channel)
     SynthDef(\gen_sampler, {|sample = 0, start = 0, dur = 1, rate = 1, amp = 1.0, pan = 0.0, fade = 0.005, rev = 0.0|
         var srate = BufSampleRate.kr(sample);
         var frames = BufFrames.kr(sample);
         var startPos = frames * start;
-        // Line.ar duration is in seconds, so sample rate mismatch is handled correctly
-        var phase = Line.ar(startPos, startPos + (srate * dur), dur * rate.abs.reciprocal);
+        // Guard against rate=0 (division by zero) - use small epsilon
+        var safeRate = Select.kr(rate.abs < 0.001, [rate.abs, 0.001]);
+        // Calculate phase direction based on rate sign
+        var phaseDur = dur * safeRate.reciprocal;
+        var phaseEnd = startPos + (srate * dur);
+        // Forward: startPos -> phaseEnd, Reverse: phaseEnd -> startPos
+        var phaseFwd = Line.ar(startPos, phaseEnd, phaseDur);
+        var phaseRev = Line.ar(phaseEnd, startPos, phaseDur);
+        var phase = Select.ar(rate >= 0, [phaseRev, phaseFwd]);
         // Envelope with attack and release to prevent clicks
         // Minimum 1ms floor to avoid known SC bug with very short envelopes
         var fadeIn = fade.min(dur * 0.3).max(0.001);
         var fadeOut = fade.min(dur * 0.3).max(0.001);
-        var env = Env([0, 1, 1, 0], [fadeIn, dur - fadeIn - fadeOut, fadeOut], \sin).ar(Done.freeSelf);
-        // Read stereo (works for mono too - mono buffers return same signal on both channels)
-        var sigStereo = BufRd.ar(2, sample, phase);
-        // Mix to mono for panning (handles both mono and stereo samples)
-        var sig = Mix.ar(sigStereo) * 0.5 * env * amp;
+        // Ensure sustain time is never negative
+        var sustainTime = (dur - fadeIn - fadeOut).max(0.001);
+        var env = Env([0, 1, 1, 0], [fadeIn, sustainTime, fadeOut], \sin).ar(Done.freeSelf);
+        // Read mono (numChannels=1) - safe for both mono and stereo buffers
+        // For stereo buffers, this reads the left channel only
+        var sig = BufRd.ar(1, sample, phase) * env * amp;
         sig = Pan2.ar(sig, pan);
         Out.ar(0, sig);
         Out.ar(~reverbBus, sig * rev);
     }).add;
+
+    // Wait for SynthDef to compile on server before allowing synth creation
+    s.sync;
 
     // --- Helper Functions ---
     ~getStartPos = {
