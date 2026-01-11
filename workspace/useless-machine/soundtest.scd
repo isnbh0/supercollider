@@ -98,17 +98,17 @@
             "Loop: " ++ start.round(0.001) ++ " → " ++ end.round(0.001);
         };
         ~setLoopStart = {|start = 0.0|
-            var current = ~loopPoints[~genSample];
+            var current = ~loopPoints[~genSample] ?? [0.0, 1.0];
             ~loopPoints[~genSample] = [start.clip(0.0, 1.0), current[1]];
             "Loop start: " ++ start.round(0.001);
         };
         ~setLoopEnd = {|end = 1.0|
-            var current = ~loopPoints[~genSample];
+            var current = ~loopPoints[~genSample] ?? [0.0, 1.0];
             ~loopPoints[~genSample] = [current[0], end.clip(0.0, 1.0)];
             "Loop end: " ++ end.round(0.001);
         };
         ~getLoop = {
-            var lp = ~loopPoints[~genSample];
+            var lp = ~loopPoints[~genSample] ?? [0.0, 1.0];
             "Loop: " ++ lp[0].round(0.001) ++ " → " ++ lp[1].round(0.001);
         };
         ~resetLoop = {
@@ -369,9 +369,15 @@
     ~randomSample = {
         var current = ~samplePack.indexOf(~genSample);
         var choices = (0..(~samplePack.size - 1)).reject {|i| i == current };
-        var newIdx = choices.choose;
-        ~genSample = ~samplePack[newIdx];
-        "Sample: " ++ newIdx.asString;
+        var newIdx;
+        // Guard: need at least 2 samples to switch
+        if(choices.size == 0, {
+            "Only 1 sample available, cannot switch";
+        }, {
+            newIdx = choices.choose;
+            ~genSample = ~samplePack[newIdx];
+            "Sample: " ++ newIdx.asString;
+        });
     };
 
     // Dot controller factory

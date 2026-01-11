@@ -239,11 +239,11 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | # | Hash | Message | Status |
 |---|------|---------|--------|
 | 0 | prereq | Prerequisites | DONE |
-| 1 | d59d82c | Add soundtest synth | |
-| 2 | 590c140 | Implement reverb routing | |
-| 3 | bf0c64a | Add wildcard.scd | |
-| 4 | 1daad18 | Integrate wildcard synthesis | |
-| 5 | ff28f29 | Fix SC bugs in wildcard | |
+| 1 | d59d82c | Add soundtest synth | DONE |
+| 2 | 590c140 | Implement reverb routing | DONE |
+| 3 | bf0c64a | Add wildcard.scd | DONE |
+| 4 | 1daad18 | Integrate wildcard synthesis | DONE |
+| 5 | ff28f29 | Fix SC bugs in wildcard | DONE |
 | 6 | a1550d9 | Fix additional SC bugs | |
 | 7 | dfb75d0 | Add execution order guards | |
 | 8 | 61a3e17 | Fix state and safety issues | |

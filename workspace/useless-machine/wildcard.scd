@@ -492,6 +492,9 @@
     var codaDuration = 30;
     var startTime = Main.elapsedTime;
 
+    // Verify system is ready
+    if(~wildcardVerify.() == false, { ^nil });
+
     ~wildcardStop.();  // Stop normal routine
 
     ~wildcardBanner.([
