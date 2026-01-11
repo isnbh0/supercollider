@@ -593,7 +593,8 @@
                 };
 
                 ~wildcardRunning = false;
-                ^nil;  // Exit routine
+                ~wildcardRoutine.stop;
+                ~wildcardRoutine = nil;
             });
 
             interval.wait;

@@ -63,6 +63,11 @@
     // Immediately invalidate ready state (prevents race condition after server restart)
     ~soundtestReady = false;
 
+    // Stop any running routines from previous session (prevents closure errors)
+    if(~wildcardRoutine.notNil, { ~wildcardRoutine.stop; ~wildcardRoutine = nil });
+    if(~tickRoutine.notNil, { ~tickRoutine.stop });
+    if(~escalationRoutine.notNil, { ~escalationRoutine.stop });
+
     s.options.memSize_(pow(2, 14));
     s.waitForBoot({
         // Reset state flags (important after server reboot)
@@ -73,6 +78,9 @@
         // Reset initialization flag and load glitch-loader
         ~initialized = nil;
         (Document.current.dir ++ "/glitch-loader.scd").load;
+
+        // Wait for all buffers to finish loading before accessing their properties
+        s.sync;
 
         // --- Loop Points Override ---
         // Each sample gets [loopStart, loopEnd] normalized to 0.0-1.0
@@ -270,16 +278,22 @@
     ~genReverb = 0.0;  // 0.0 = dry, 1.0 = full reverb send
 
     // Modified sampler with attack/release envelope to prevent clicks
+    // Supports both mono and stereo samples (stereo mixed to mono for panning)
     SynthDef(\gen_sampler, {|sample = 0, start = 0, dur = 1, rate = 1, amp = 1.0, pan = 0.0, fade = 0.005, rev = 0.0|
         var srate = BufSampleRate.kr(sample);
         var frames = BufFrames.kr(sample);
         var startPos = frames * start;
+        // Line.ar duration is in seconds, so sample rate mismatch is handled correctly
         var phase = Line.ar(startPos, startPos + (srate * dur), dur * rate.abs.reciprocal);
         // Envelope with attack and release to prevent clicks
-        var fadeIn = min(fade, dur * 0.3);
-        var fadeOut = min(fade, dur * 0.3);
+        // Minimum 1ms floor to avoid known SC bug with very short envelopes
+        var fadeIn = fade.min(dur * 0.3).max(0.001);
+        var fadeOut = fade.min(dur * 0.3).max(0.001);
         var env = Env([0, 1, 1, 0], [fadeIn, dur - fadeIn - fadeOut, fadeOut], \sin).ar(Done.freeSelf);
-        var sig = BufRd.ar(1, sample, phase) * env * amp;
+        // Read stereo (works for mono too - mono buffers return same signal on both channels)
+        var sigStereo = BufRd.ar(2, sample, phase);
+        // Mix to mono for panning (handles both mono and stereo samples)
+        var sig = Mix.ar(sigStereo) * 0.5 * env * amp;
         sig = Pan2.ar(sig, pan);
         Out.ar(0, sig);
         Out.ar(~reverbBus, sig * rev);
@@ -651,6 +665,9 @@
 ( ~start.(); )
 ( ~stop.(); )
 
+
+~initialized = nil;
+(Document.current.dir ++ "/wildcard.scd").load;
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 // >>>>>>>>>>>>>>>>>>>>>>>> FULL PERFORMANCE START!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -739,33 +756,30 @@
 ~genSample = ~samplePack[6];   // First Class Piano (DEFAULT)
 
 // Random sample
-( ~randomSample.(); )
+( ~randomSample.() ; )
 
 // Dot controllers: "" = min, ".........." = max
 // Initial values synced with PREP defaults
 
 ( ~rev.(  // reverb: dry → wet (init: 0)
-    "..."
+    "........."
 ))
 
 ( ~fade.(  // fade: 1ms → 50ms exp (init: 5ms)
-    "...."
+    ""
 ))
 
-( ~master.(  // master volume: 0 → 1 (init: 0.8)
-    "........"
-))
 
 ( ~speed.(  // playhead: 0% → 100%="....." → 200% (init: 100%)
-    "....."
+    ""
 ))
 
 ( ~jitter.(  // jitter: 0 → 0.3 (init: 0)
-    ""
+    "...."
 ))
 
 ( ~silence.(  // silence prob: 0 → 0.3 (init: 0)
-    ""
+    ".........."
 ))
 
 ( ~silenceDur.(  // silence ticks: 1 → 30 (init: 10)
@@ -777,7 +791,7 @@
 ))
 
 ( ~startPos.(  // start pos: 0 → 1 (init: 0)
-    ""
+    ".."
 ))
 
 ( ~startRange.(  // start range: 0 → 0.5 (init: 0)
@@ -786,7 +800,7 @@
 
 // Loop points: constrain playback to a portion of the sample
 ~getLoop.();  // show current loop points
-~setLoop.(0.0, 1.0);  // set both start and end
+~setLoop.(0.0, 0.1);  // set both start and end
 ~setLoopStart.(0.0);  // just start
 ~setLoopEnd.(1.0);    // just end
 ~resetLoop.();        // reset to full sample
@@ -796,7 +810,7 @@
 ))
 
 ( ~loopEnd.(  // loop end: 0 → 1 (init: 1)
-    ".........."
+    "........."
 ))
 
 // Presets
@@ -889,7 +903,7 @@
 
 // Master level
 ( ~master.(  // init: 0.8
-    "........"
+    ""
 ))
 
 
