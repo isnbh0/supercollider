@@ -138,6 +138,13 @@
 
 // --- PREP: Set up generators, functions, and limiter ---
 ~prep = {
+    // Guard: ensure boot completed
+    if(~samplePack.isNil or: { ~samplePack.size == 0 }, {
+        "오류: ~boot.() 먼저 실행하고 'BOOT complete' 메시지를 기다리세요".postln;
+        "Error: Run ~boot.() first and wait for 'BOOT complete'".postln;
+        ^nil;
+    });
+
     // Configuration
     ~genSample = ~samplePack[6];
     ~genStartPos = 0.0;
@@ -568,6 +575,13 @@
 
 // --- START: Begin the tick ---
 ~start = {
+    // Guard: ensure prep completed
+    if(~soundtestReady != true, {
+        "오류: ~prep.() 먼저 실행하세요".postln;
+        "Error: Run ~prep.() first".postln;
+        ^nil;
+    });
+
     if(~tickRunning == false, {
         ~tickRunning = true;
         ~silenceCounter = 0;
