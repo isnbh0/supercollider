@@ -1,58 +1,11 @@
 // ================================================================================
 // 4 GENERATORS SOUNDCHECK
-// ================================================================================
 //
-// ╔════════════════════════════════════════════════════════════════════════════╗
-// ║                         QUICK START (RUN IN ORDER)                         ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  1. ( ~boot.(); )     // Boot server, load samples                         ║
-// ║  2. ( ~prep.(); )     // Set up generators                                 ║
-// ║  3. ( ~start.(); )    // Start playback                                    ║
-// ║  4. ( ~stop.(); )     // Stop playback                                     ║
-// ╚════════════════════════════════════════════════════════════════════════════╝
-//
-// ╔════════════════════════════════════════════════════════════════════════════╗
-// ║                              WILDCARD SETUP                                ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  LOAD:    ( (Document.current.dir ++ "/wildcard.scd").load; )              ║
-// ║  START:   ( ~wildcardStart.(); )    // auto-saves state first              ║
-// ║  STOP:    ( ~wildcardStop.(); )                                            ║
-// ║  RECOVER: ( ~wildcardRecover.(); )  // stop + restore saved state          ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  LEVELS:  ( ~wildcardSetLevel.(1); )  // 1=subtle, 5=total chaos           ║
-// ║  CODA:    ( ~wildcardCoda.(); )       // 30-sec final collapse!            ║
-// ╚════════════════════════════════════════════════════════════════════════════╝
-//
-// ╔════════════════════════════════════════════════════════════════════════════╗
-// ║                            RESTART EVERYTHING                              ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  If things go wrong:                                                       ║
-// ║    1. ( ~stop.(); )                                                        ║
-// ║    2. ( ~wildcardStop.(); )       // if wildcard running                   ║
-// ║    3. ( ~stateRestore.(); )       // restore saved params                  ║
-// ║    4. ( ~start.(); )              // restart clean                         ║
-// ║                                                                            ║
-// ║  Nuclear option (full reset):                                              ║
-// ║    1. Cmd+. (stop all sound)                                               ║
-// ║    2. ( ~boot.(); )                                                        ║
-// ║    3. ( ~prep.(); )                                                        ║
-// ║    4. ( ~start.(); )                                                       ║
-// ╚════════════════════════════════════════════════════════════════════════════╝
-//
-// ╔════════════════════════════════════════════════════════════════════════════╗
-// ║                           QUICK ADJUSTMENTS                                ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  SAMPLE:   ~genSample = ~samplePack[6];   // 0-8, see list below           ║
-// ║  SPEED:    ( ~speed.("....."); )          // 5 dots = 100%                 ║
-// ║  VOLUME:   ( ~master.("........"); )      // 8 dots = 80%                  ║
-// ║  REVERB:   ( ~rev.("..."); )              // 0-10 dots                     ║
-// ║  PRESET:   ~preset.(\normal);             // \original \normal \ambient    ║
-// ║  LOOP:     ~setLoop.(0.0, 0.85);          // start, end (0-1)              ║
-// ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  STATE:    ( ~stateSnapshot.(); )         // save current params           ║
-// ║            ( ~stateRestore.(); )          // restore saved params          ║
-// ╚════════════════════════════════════════════════════════════════════════════╝
-//
+// Usage:
+//   ~boot.();   // Boot server and load samples
+//   ~prep.();   // Set up generators and limiter
+//   ~start.();  // Start the tick
+//   ~stop.();   // Stop the tick
 // ================================================================================
 
 
@@ -80,17 +33,6 @@
         };
         // Sample-specific loop points
         ~loopPoints[~samplePack[6]] = [0.0, 0.85];  // First Class Piano
-
-        // Sample registry with metadata (for wildcard)
-        ~sampleRegistry = ~samplePack.collect {|buf, i|
-            (
-                buffer: buf,
-                index: i,
-                name: PathName(buf.path).fileNameWithoutExtension,
-                duration: buf.duration,
-                channels: buf.numChannels,
-            )
-        };
 
         // Set loop points for current sample
         ~setLoop = {|start = 0.0, end = 1.0|
@@ -144,21 +86,12 @@
     ~genStartRange = 0.0;
 
     // Generator specs: [prob, dur_sec, amp] - "original" preset (normal playback)
-    // @wildcard STUTTER:
-    //   ~genSpecs[0..3][0] - probability (0-1)
-    //   ~genSpecs[0..3][1] - duration (0.001-10 sec)
-    //   ~genSpecs[0..3][2] - amplitude (0-1)
     ~genSpecs = [
         [0.0,  0.01,  0.7],   // id 0: off
         [0.0,  0.1,   0.5],   // id 1: off
         [1.0,  1.0,   0.4],   // id 2: off
         [0.0,  10.0,  0.25],  // id 3: full sample, always triggers
     ];
-
-    // Getter functions for genSpecs (allows wildcard to affect mid-tick)
-    ~getGenProb = {|id| ~genSpecs[id][0] };
-    ~getGenDur = {|id| ~genSpecs[id][1] };
-    ~getGenAmp = {|id| ~genSpecs[id][2] };
 
     // State tracking
     ~genWeights = [8, 4, 2, 1];
@@ -167,18 +100,15 @@
     ~genBase = [0, 1, 2, 3];
 
     // Behavior settings
-    // @wildcard: overrideProb [0, 1] - probability to interrupt busy generator
     ~overrideProb = 0.0;
-    // @wildcard: tickRate [1, 200] - ticks per second
     ~tickRate = 40;
     ~tickRunning = false;
-    // @wildcard: silenceProb [0, 1] - probability of silence gap
     ~silenceProb = 0.0;
     ~silenceDuration = 10;
     ~silenceCounter = 0;
 
     // Debug mode
-    ~debug = false;
+    ~debug = true;
     ~debugInterval = 10;  // print every N ticks
     ~debugTick = 0;
 
@@ -188,11 +118,9 @@
     // Playhead mode: cycles through sample instead of random
     ~playheadMode = true;       // true = playhead, false = random
     ~playheadPos = 0.0;          // current position (0.0 to 1.0)
-    // @wildcard: playheadSpeedPct [0, 500] - playback speed percentage
     ~playheadSpeedPct = 100;     // speed as percentage: 0=stopped, 100=normal, 200=2x
     ~playheadBaseRate = 0.4;     // base rate: full samples per second at 100%
     ~playheadAdvance = 0.01;     // computed per-tick advancement (updated by ~updateSpeed)
-    // @wildcard: playheadJitter [0, 1] - start position randomization
     ~playheadJitter = 0.0;       // zero jitter for clean playback
 
     // Recalculate per-tick advancement (call after changing speedPct or tickRate)
@@ -260,22 +188,16 @@
     ~genReverb = 0.0;  // 0.0 = dry, 1.0 = full reverb send
 
     // Modified sampler with attack/release envelope to prevent clicks
-    // Supports both mono and stereo samples (stereo mixed to mono for panning)
     SynthDef(\gen_sampler, {|sample = 0, start = 0, dur = 1, rate = 1, amp = 1.0, pan = 0.0, fade = 0.005, rev = 0.0|
         var srate = BufSampleRate.kr(sample);
         var frames = BufFrames.kr(sample);
         var startPos = frames * start;
-        // Line.ar duration is in seconds, so sample rate mismatch is handled correctly
         var phase = Line.ar(startPos, startPos + (srate * dur), dur * rate.abs.reciprocal);
         // Envelope with attack and release to prevent clicks
-        // Minimum 1ms floor to avoid known SC bug with very short envelopes
-        var fadeIn = max(0.001, min(fade, dur * 0.3));
-        var fadeOut = max(0.001, min(fade, dur * 0.3));
+        var fadeIn = min(fade, dur * 0.3);
+        var fadeOut = min(fade, dur * 0.3);
         var env = Env([0, 1, 1, 0], [fadeIn, dur - fadeIn - fadeOut, fadeOut], \sin).ar(Done.freeSelf);
-        // Read stereo (works for mono too - mono buffers return same signal on both channels)
-        var sigStereo = BufRd.ar(2, sample, phase);
-        // Mix to mono for panning (handles both mono and stereo samples)
-        var sig = Mix.ar(sigStereo) * 0.5 * env * amp;
+        var sig = BufRd.ar(1, sample, phase) * env * amp;
         sig = Pan2.ar(sig, pan);
         Out.ar(0, sig);
         Out.ar(~reverbBus, sig * rev);
@@ -493,76 +415,6 @@
         "Glitch mode: seamlessMode=false, preset=normal";
     };
 
-    // === WILDCARD HELPERS ===
-    // Burst all generators simultaneously
-    ~burstAll = {|amp = 0.5|
-        4.do {|i|
-            var spec = ~genSpecs[i];
-            ~genSynths[i] = Synth(\gen_sampler, [
-                \sample, ~genSample,
-                \start, 1.0.rand,
-                \dur, spec[1],
-                \amp, amp,
-                \pan, 1.0.rand2,
-                \fade, ~fadeTime,
-                \rev, ~genReverb,
-            ]);
-        };
-        "BURST: all generators triggered";
-    };
-
-    // Silence all generators
-    ~silenceAll = {
-        4.do {|i| ~haltGen.(i) };
-        "SILENCE: all generators halted";
-    };
-
-    // State snapshot/restore (for wildcard recovery)
-    ~stateSnapshot = {
-        ~savedState = (
-            genSpecs: ~genSpecs.deepCopy,
-            genSample: ~genSample,
-            playheadJitter: ~playheadJitter,
-            playheadSpeedPct: ~playheadSpeedPct,
-            tickRate: ~tickRate,
-            masterLevel: ~masterLevel,
-            genReverb: ~genReverb,
-            fadeTime: ~fadeTime,
-            silenceProb: ~silenceProb,
-            overrideProb: ~overrideProb,
-            loopPoints: ~loopPoints.copy,
-            seamlessMode: ~seamlessMode,
-            playheadMode: ~playheadMode,
-        );
-        "State snapshot saved";
-    };
-
-    ~stateRestore = {
-        if(~savedState.notNil, {
-            ~genSpecs = ~savedState.genSpecs.deepCopy;
-            ~genSample = ~savedState.genSample;
-            ~playheadJitter = ~savedState.playheadJitter;
-            ~playheadSpeedPct = ~savedState.playheadSpeedPct;
-            ~tickRate = ~savedState.tickRate;
-            ~masterLevel = ~savedState.masterLevel;
-            ~genReverb = ~savedState.genReverb;
-            ~fadeTime = ~savedState.fadeTime;
-            ~silenceProb = ~savedState.silenceProb;
-            ~overrideProb = ~savedState.overrideProb;
-            ~loopPoints = ~savedState.loopPoints.copy;
-            ~seamlessMode = ~savedState.seamlessMode;
-            ~playheadMode = ~savedState.playheadMode;
-            ~updateSpeed.();
-            "State restored";
-        }, {
-            "No saved state";
-        });
-    };
-
-    // Wildcard integration flag
-    ~soundtestReady = true;
-    ~soundtestVersion = "1.1";
-
     "=== PREP complete ===";
 };
 
@@ -626,93 +478,15 @@
 "Definitions loaded. Run ~boot.(), ~prep.(), ~start.()";
 )
 
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>> RUN HERE!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// ==================== RUN ====================
 ( ~boot.(); )
 ( ~prep.(); )
 ( ~start.(); )
 ( ~stop.(); )
 
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>> FULL PERFORMANCE START!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// ONE BUTTON TO START EVERYTHING - 7 minute auto-escalation:
-//   0:00 - 1:00  Level 1 (subtle)
-//   1:00 - 2:30  Level 2 (noticeable)
-//   2:30 - 4:00  Level 3 (disruptive)
-//   4:00 - 5:30  Level 4 (chaotic)
-//   5:30 - 6:30  Level 5 (total chaos)
-//   6:30 - 7:00  CODA (collapse + crash)
-(
-~performanceStart = {
-    // Load wildcard if not loaded
-    (Document.current.dir ++ "/wildcard.scd").load;
-
-    // Start playback
-    ~start.();
-
-    // Save state before chaos
-    ~stateSnapshot.();
-
-    // Start wildcard at level 1
-    ~wildcardStart.();
-
-    // Auto-escalation routine
-    ~escalationRoutine = {
-        "PERFORMANCE STARTED - 7 minute arc".postln;
-        "Level 1: SUBTLE".postln;
-
-        60.wait;  // 1:00 - Level 2
-        ~wildcardSetLevel.(2);
-
-        90.wait;  // 2:30 - Level 3
-        ~wildcardSetLevel.(3);
-
-        90.wait;  // 4:00 - Level 4
-        ~wildcardSetLevel.(4);
-
-        90.wait;  // 5:30 - Level 5
-        ~wildcardSetLevel.(5);
-
-        60.wait;  // 6:30 - CODA
-        ~wildcardCoda.();
-
-        "PERFORMANCE COMPLETE".postln;
-    }.fork;
-
-    "=== PERFORMANCE MODE STARTED ===";
-};
-)
-
-// RUN THIS TO START THE FULL 7-MINUTE PERFORMANCE:
-( ~performanceStart.(); )
-
-// STOP THE ESCALATION TIMER (keeps sound running, stops auto-level-up):
-( ~escalationRoutine.stop; "Escalation stopped"; )
-
 
 // ==================== CONTROLS ====================
 
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>> WILDCARD HERE!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-( (Document.current.dir ++ "/wildcard.scd").load; )  // LOAD WILDCARD
-( ~wildcardStart.(); )      // START CHAOS
-( ~wildcardStop.(); )       // STOP CHAOS
-( ~wildcardSetLevel.(1); )  // LEVEL 1 = subtle
-( ~wildcardSetLevel.(2); )  // LEVEL 2 = noticeable
-( ~wildcardSetLevel.(3); )  // LEVEL 3 = disruptive
-( ~wildcardSetLevel.(4); )  // LEVEL 4 = chaotic
-( ~wildcardSetLevel.(5); )  // LEVEL 5 = total chaos
-( ~wildcardCoda.(); )       // FINAL 30-SEC COLLAPSE!!!
-
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>> SAMPLE HERE!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-~genSample = ~samplePack[0];   // Amen break
-~genSample = ~samplePack[4];   // Piano
-~genSample = ~samplePack[6];   // First Class Piano (DEFAULT)
 
 // Random sample
 ( ~randomSample.(); )
@@ -867,49 +641,3 @@
 ( ~master.(  // init: 0.8
     "........"
 ))
-
-
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>> PANIC BUTTON!!! <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-// PANIC LEVEL 1: Stop everything gracefully
-(
-    ~stop.();
-    ~wildcardStop.();
-    "PANIC 1: Stopped playback and wildcard";
-)
-
-// PANIC LEVEL 2: Stop + restore saved state
-(
-    ~stop.();
-    ~wildcardStop.();
-    ~stateRestore.();
-    ~start.();
-    "PANIC 2: Restored and restarted";
-)
-
-// PANIC LEVEL 3: Full wildcard recovery
-(
-    ~wildcardRecover.();
-    ~stop.();
-    ~start.();
-    "PANIC 3: Full wildcard recovery";
-)
-
-// PANIC LEVEL 4: NUCLEAR - full reboot (run each line separately!)
-// Step 1: Cmd+. (stop all sound in SuperCollider)
-// Step 2:
-( ~boot.(); )
-// Step 3:
-( ~prep.(); )
-// Step 4:
-( ~start.(); )
-
-// INSTANT SILENCE (run this if sound is out of control)
-( s.freeAll; "ALL SYNTHS KILLED"; )
-
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
