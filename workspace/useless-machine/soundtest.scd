@@ -93,8 +93,9 @@
 
         if(~samplePack.size == 0, {
             "ERROR: No samples loaded! Check samplepack directory.".postln;
-            ^nil;
-        });
+            // Don't use ^nil in callback - just exit this block
+            // The callback will return nil naturally
+        }, {
 
         ("Loaded " ++ ~samplePack.size ++ " samples successfully").postln;
 
@@ -160,6 +161,7 @@
         TempoClock.tempo_(140/60);
 
         "=== BOOT complete ===";
+        }); // end of if(~samplePack.size == 0) else block
     });
 };
 
@@ -707,11 +709,20 @@
 //   6:30 - 7:00  CODA (collapse + crash)
 (
 ~performanceStart = {
+    var wildcardOk;
+
     // Guard: ensure system is ready
     if(~soundtestReady != true, {
         "오류: ~boot.() 와 ~prep.() 먼저 실행하세요".postln;
         "Error: Run ~boot.() and ~prep.() first".postln;
         ^nil;
+    });
+
+    // Stop any existing escalation routine to prevent orphaned routines
+    if(~escalationRoutine.notNil, {
+        "Stopping previous escalation routine...".postln;
+        ~escalationRoutine.stop;
+        ~escalationRoutine = nil;
     });
 
     // Load wildcard if not loaded
@@ -723,8 +734,12 @@
     // Save state before chaos
     ~stateSnapshot.();
 
-    // Start wildcard at level 1
-    ~wildcardStart.();
+    // Start wildcard at level 1 and check if it succeeded
+    wildcardOk = ~wildcardStart.();
+    if(wildcardOk.isNil, {
+        "WARNING: Wildcard failed to start - check ~boot and ~prep".postln;
+        "Performance continuing without wildcard automation".postln;
+    });
 
     // Auto-escalation routine
     ~escalationRoutine = {
@@ -746,7 +761,17 @@
         60.wait;  // 6:30 - CODA
         ~wildcardCoda.();
 
-        "PERFORMANCE COMPLETE".postln;
+        // Wait for coda to complete (30 seconds) before declaring done
+        30.wait;
+
+        "".postln;
+        "================================================".postln;
+        "   PERFORMANCE COMPLETE / 공연 종료             ".postln;
+        "================================================".postln;
+        "".postln;
+
+        // Clean up
+        ~escalationRoutine = nil;
     }.fork;
 
     "=== PERFORMANCE MODE STARTED ===";

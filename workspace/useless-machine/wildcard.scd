@@ -258,8 +258,20 @@ if(~wildcardRunning == true, {
     // Handle case where current sample isn't in registry
     oldName = if(oldInfo.notNil, { oldInfo.name }, { "???" });
 
-    // Avoid same sample (safe now that we know size >= 2)
-    while { newInfo.buffer == ~genSample } { newInfo = ~sampleRegistry.choose };
+    // Avoid same sample with safety limit to prevent infinite loop
+    // (edge case: if all registry entries somehow point to same buffer)
+    block {|break|
+        var attempts = 0;
+        var maxAttempts = ~sampleRegistry.size * 2;  // generous limit
+        while { newInfo.buffer == ~genSample } {
+            newInfo = ~sampleRegistry.choose;
+            attempts = attempts + 1;
+            if(attempts >= maxAttempts, {
+                "WARNING: Could not find different sample after % attempts".format(attempts).postln;
+                break.value;  // exit the block, use whatever we have
+            });
+        };
+    };
 
     // WILDCARD: SAMPLE MUTATION
     ~genSample = newInfo.buffer;
@@ -520,6 +532,8 @@ if(~wildcardRunning == true, {
     ~wildcardRoutine = {
         var elapsed, progress, interval, mutations, bar, filled;
 
+        // Use block to allow clean exit from infinite loop
+        block {|exitCoda|
         inf.do {|i|
             elapsed = Main.elapsedTime - startTime;
             progress = (elapsed / codaDuration).clip(0, 1);
@@ -577,7 +591,7 @@ if(~wildcardRunning == true, {
                 });
             });
 
-            // Crash point
+            // Crash point - exit loop cleanly when done
             if(progress >= 1.0, {
                 ~wildcardBanner.([
                     "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
@@ -608,13 +622,20 @@ if(~wildcardRunning == true, {
                     };
                 });
 
+                // Clean exit: set flags first, then exit the loop
                 ~wildcardRunning = false;
-                ~wildcardRoutine.stop;
                 ~wildcardRoutine = nil;
-            });
 
-            interval.wait;
+                "CODA COMPLETE / 코다 종료".postln;
+
+                // Exit the inf.do loop cleanly using block's exit function
+                exitCoda.value;
+            }, {
+                // Only wait if we're not done - prevents wait after completion
+                interval.wait;
+            });
         };
+        }; // end of block
     }.fork;
 
     "코다 시작 - 돌아올 수 없는 지점 / CODA initiated - point of no return";
