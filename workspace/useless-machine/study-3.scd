@@ -168,3 +168,5 @@ s.scope.window.alwaysOnTop_(true);
 
 // remove references to ~sources and ~effects environment variables:
 currentEnvironment.clear;
+
+
