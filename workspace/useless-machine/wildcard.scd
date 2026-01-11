@@ -573,25 +573,23 @@ if(~wildcardRunning == true, {
                     "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
                 ]);
 
-                // Synth flood - rate limited to prevent server overload
-                // Guard: only spawn if samplePack has samples
+                // Pre-crash synth flood - NO rate limiting, instant spawn
                 if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
-                    20.do {
+                    50.do {
                         Synth(\gen_sampler, [
                             \sample, ~samplePack.choose,
                             \start, 1.0.rand,
-                            \dur, rrand(0.01, 0.5),
-                            \amp, rrand(0.3, 0.8),
+                            \dur, rrand(2, 8),  // long durations = more overlap
+                            \amp, rrand(0.5, 1.0),
                             \pan, 1.0.rand2,
                             \fade, 0.001,
-                            \rev, 1.0.rand,
+                            \rev, 1.0,
                         ]);
-                        0.02.wait;  // 20ms between spawns to prevent flood
                     };
                 });
             });
 
-            // Crash point - exit loop cleanly when done
+            // Crash point - AGGRESSIVE TERMINATION
             if(progress >= 1.0, {
                 ~wildcardBanner.([
                     "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
@@ -602,33 +600,62 @@ if(~wildcardRunning == true, {
                     "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
                 ]);
 
-                // Final synth flood - rate limited (50 synths instead of 100)
-                // Guard: only spawn if samplePack has samples
+                // ============================================================
+                // AGGRESSIVE SYNTH FLOOD - DESIGNED TO CRASH THE SERVER
+                // ============================================================
                 if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
-                    50.do {|j|
+                    ">>> INITIATING SERVER DESTRUCTION <<<".postln;
+
+                    // Wave 1: 100 synths, no waiting
+                    100.do {
                         Synth(\gen_sampler, [
                             \sample, ~samplePack.choose,
                             \start, 1.0.rand,
-                            \dur, rrand(0.5, 5),
-                            \amp, 0.5,
+                            \dur, rrand(5, 15),  // very long durations
+                            \amp, 1.0,           // max amplitude
                             \pan, 1.0.rand2,
-                            \fade, 0.001,
+                            \fade, 0.0001,       // nearly instant attack
+                            \rev, 1.0,           // full reverb (more CPU)
+                        ]);
+                    };
+                    "WAVE 1: 100 신스 / 100 SYNTHS".postln;
+
+                    // Wave 2: another 100, immediate
+                    100.do {
+                        Synth(\gen_sampler, [
+                            \sample, ~samplePack.choose,
+                            \start, 1.0.rand,
+                            \dur, rrand(10, 30),
+                            \amp, 1.0,
+                            \pan, 1.0.rand2,
+                            \fade, 0.0001,
                             \rev, 1.0,
                         ]);
-                        if(j % 10 == 0, {
-                            ("신스 " ++ j ++ " 생성됨 / SYNTH SPAWNED").postln;
-                        });
-                        0.01.wait;  // 10ms between spawns to prevent server crash
                     };
+                    "WAVE 2: 200 신스 / 200 SYNTHS".postln;
+
+                    // Wave 3: final 100 for total destruction
+                    100.do {
+                        Synth(\gen_sampler, [
+                            \sample, ~samplePack.choose,
+                            \start, 1.0.rand,
+                            \dur, 60,  // 60 second synths
+                            \amp, 1.0,
+                            \pan, 1.0.rand2,
+                            \fade, 0.0001,
+                            \rev, 1.0,
+                        ]);
+                    };
+                    "WAVE 3: 300 신스 / 300 SYNTHS - 서버 붕괴 / SERVER COLLAPSE".postln;
                 });
 
-                // Clean exit: set flags first, then exit the loop
+                // Set flags - server likely frozen/crashed by now
                 ~wildcardRunning = false;
                 ~wildcardRoutine = nil;
 
-                "CODA COMPLETE / 코다 종료".postln;
+                "/// TOTAL COLLAPSE ACHIEVED /// 완전한 붕괴 ///".postln;
 
-                // Exit the inf.do loop cleanly using block's exit function
+                // Exit - if we even get here
                 exitCoda.value;
             }, {
                 // Only wait if we're not done - prevents wait after completion
