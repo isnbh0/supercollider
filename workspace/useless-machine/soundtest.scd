@@ -326,7 +326,11 @@
     }).add;
 
     // Wait for SynthDef to compile on server before allowing synth creation
-    s.sync;
+    // Note: s.sync requires Routine context, so we fork here
+    fork {
+        s.sync;
+        "SynthDef compiled".postln;
+    };
 
     // --- Helper Functions ---
     ~getStartPos = {

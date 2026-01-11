@@ -4,13 +4,14 @@
 if(~initialized.isNil) {
   var efxSetup;
 
+  // Remove any previous ServerTree entry to prevent duplicates on re-boot
+  if(~efxSetupFunc.notNil, { ServerTree.remove(~efxSetupFunc) });
+
   ~reverbBus = Bus.audio(s, 2);
   ~delayBus = Bus.audio(s, 2);
   ~delayTime = [0.25, 0.25];
 
   efxSetup = {
-
-	Ndef(\lfo).play;
 
 	~reverb = {
 	  GVerb.ar(In.ar(~reverbBus, 2), 100, 6.0);
@@ -25,7 +26,9 @@ if(~initialized.isNil) {
 	}.defer(0.5);
   };
 
-  ServerTree.add(efxSetup);
+  // Store reference for cleanup on re-boot
+  ~efxSetupFunc = efxSetup;
+  ServerTree.add(~efxSetupFunc);
 
   ~setDelayTime = {|delTime|
 	~delayTime = delTime;
@@ -34,7 +37,8 @@ if(~initialized.isNil) {
 
   efxSetup.();
 
-  ~samplePack = [
+  // Load samples and store paths for validation after s.sync
+  ~samplePaths = [
 	"00.The_Amen_Break.wav",
 	"01.DnB_Classic_Break.wav",
 	"02.Wires_Crossed_Beat.wav",
@@ -55,7 +59,8 @@ if(~initialized.isNil) {
 	"17.AlvaNoto_C7_01.wav",
 	"18.AlvaNoto_C7_02.wav",
 	"19.AlvaNoto_ID_01.wav"
-  ].collect({|path|
+  ];
+  ~samplePack = ~samplePaths.collect({|path|
 	Buffer.read(s, Document.current.dir ++ "/samplepack/" ++ path);
   });
 

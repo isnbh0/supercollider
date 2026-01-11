@@ -245,13 +245,13 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 4 | 1daad18 | Integrate wildcard synthesis | DONE |
 | 5 | ff28f29 | Fix SC bugs in wildcard | DONE |
 | 6 | a1550d9 | Fix additional SC bugs | DONE |
-| 7 | dfb75d0 | Add execution order guards | |
-| 8 | 61a3e17 | Fix state and safety issues | |
-| 9 | 7c7b2e6 | Merge with bug fixes | |
-| 10 | eff33c3 | Fix safety and correctness | |
-| 11 | 43e01b0 | Fix performance loop timing | |
-| 12 | 17b34b6 | Make coda crash server | |
-| 13 | f07a113 | Add warning comments | |
+| 7 | dfb75d0 | Add execution order guards | DONE |
+| 8 | 61a3e17 | Fix state and safety issues | DONE |
+| 9 | 7c7b2e6 | Merge with bug fixes | DONE |
+| 10 | eff33c3 | Fix safety and correctness | DONE |
+| 11 | 43e01b0 | Fix performance loop timing | DONE |
+| 12 | 17b34b6 | Make coda crash server | DONE |
+| 13 | f07a113 | Add warning comments | DONE |
 | 14 | 0a1ce63 | Remove wildcard.scd | |
 | 15 | 7db74cc | Add visual spec + M0 tests | |
 | 16 | 5d95233 | Implement M09 converter | |
