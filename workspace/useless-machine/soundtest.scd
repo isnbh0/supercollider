@@ -60,6 +60,9 @@
 (
 // --- BOOT: Server setup and load samples ---
 ~boot = {
+    // Immediately invalidate ready state (prevents race condition after server restart)
+    ~soundtestReady = false;
+
     s.options.memSize_(pow(2, 14));
     s.waitForBoot({
         // Reset state flags (important after server reboot)
@@ -660,6 +663,13 @@
 //   6:30 - 7:00  CODA (collapse + crash)
 (
 ~performanceStart = {
+    // Guard: ensure system is ready
+    if(~soundtestReady != true, {
+        "오류: ~boot.() 와 ~prep.() 먼저 실행하세요".postln;
+        "Error: Run ~boot.() and ~prep.() first".postln;
+        ^nil;
+    });
+
     // Load wildcard if not loaded
     (Document.current.dir ++ "/wildcard.scd").load;
 
@@ -703,7 +713,7 @@
 ( ~performanceStart.(); )
 
 // STOP THE ESCALATION TIMER (keeps sound running, stops auto-level-up):
-( ~escalationRoutine.stop; "Escalation stopped"; )
+( if(~escalationRoutine.notNil, { ~escalationRoutine.stop }); "Escalation stopped"; )
 
 
 // ==================== CONTROLS ====================
