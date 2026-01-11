@@ -543,9 +543,75 @@ if(result == 6, { "PASS".postln }, { "FAIL".postln });
 Expected: Returns 6.
 
 **Milestone 0 Exit Criteria:**
-- [ ] All 6 tests pass
-- [ ] Document which tests failed (if any) and on what platform
-- [ ] If any test fails, STOP and investigate before proceeding
+- [x] All 6 tests pass
+- [x] Document which tests failed (if any) and on what platform
+- [x] If any test fails, STOP and investigate before proceeding
+
+---
+
+### Milestone 0.5: Coordinate System Discovery
+
+**Goal:** Understand why `doc.string` byte positions don't match `doc.selectRange` positions.
+
+**Critical Finding:** SuperCollider uses two different coordinate systems:
+- `String` indexing: **UTF-8 bytes**
+- `Document.selectRange`: **UTF-16 code units** (Qt's internal representation)
+
+**Drift Calculation:**
+
+| Character Type | UTF-8 bytes | UTF-16 units | Drift contribution |
+|---------------|-------------|--------------|-------------------|
+| ASCII (U+0000-007F) | 1 | 1 | +0 |
+| U+0080-07FF (Latin ext, Greek) | 2 | 1 | +1 |
+| U+0800-FFFF (CJK, symbols) | 3 | 1 | +2 |
+| U+10000-10FFFF (emoji) | 4 | 2 (surrogate) | +2 |
+
+**Formula:** `bytePosition = utf16Position + cumulativeDrift`
+
+**Example from testing:**
+- Arrow → (U+2192): 3 bytes, 1 UTF-16 → +2
+- Korean 한글: 6 bytes, 2 UTF-16 → +4
+- Emoji 🎹: 4 bytes, 2 UTF-16 → +2
+- **Total drift: +8 bytes**
+
+This was verified empirically: `selectRange(527)` selected text found at byte position 535.
+
+---
+
+### Milestone 0.9: Position Converter Utility
+
+**Goal:** Implement and exhaustively test byte↔UTF-16 position conversion.
+
+**Rationale:** All subsequent milestones depend on accurate position conversion. This utility must be 100% correct.
+
+**Required Functions:**
+
+```supercollider
+// Convert byte position to UTF-16 position for use with selectRange
+~byteToUtf16 = {|text, bytePos| ... };
+
+// Convert UTF-16 position (from selectRange) to byte position for string indexing
+~utf16ToByte = {|text, utf16Pos| ... };
+```
+
+**Test Strategy:**
+
+Use Python to generate test vectors covering:
+1. ASCII-only strings (no drift)
+2. 2-byte UTF-8 characters (Latin, Greek, Cyrillic)
+3. 3-byte UTF-8 characters (CJK, arrows, math symbols)
+4. 4-byte UTF-8 characters (emoji with surrogate pairs)
+5. Mixed content
+6. Edge cases (empty, single char, boundaries)
+7. Round-trip verification: `utf16ToByte(byteToUtf16(x)) == x`
+
+**Test File:** `wildcard-visual-m09-converter.scd`
+
+**Milestone 0.9 Exit Criteria:**
+- [ ] All Python-generated test vectors pass
+- [ ] Round-trip conversion is identity
+- [ ] No off-by-one errors at character boundaries
+- [ ] Handles all 4 UTF-8 byte lengths correctly
 
 ---
 

@@ -253,7 +253,7 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 12 | 17b34b6 | Make coda crash server | DONE |
 | 13 | f07a113 | Add warning comments | DONE |
 | 14 | 0a1ce63 | Remove wildcard.scd | DONE |
-| 15 | 7db74cc | Add visual spec + M0 tests | |
+| 15 | 7db74cc | Add visual spec + M0 tests | DONE |
 | 16 | 5d95233 | Implement M09 converter | |
 | 17 | e7baeed | Add M1 inspection + TIL | |
 | 18 | 2576d09 | Move tests to tests/ | |
