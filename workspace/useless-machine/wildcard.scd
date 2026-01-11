@@ -505,7 +505,9 @@ if(~wildcardRunning == true, {
 };
 
 // === CODA: FINAL COLLAPSE / 코다: 최후의 붕괴 ===
-// 30 seconds of escalating chaos, then crash
+// 30 seconds of escalating chaos, then INTENTIONAL server crash.
+// The server overload at the end is BY DESIGN - it's the artistic climax.
+// See comments in the crash section below for details.
 ~wildcardCoda = {
     var codaDuration = 30;
     var startTime = Main.elapsedTime;
@@ -574,6 +576,7 @@ if(~wildcardRunning == true, {
                 ]);
 
                 // Pre-crash synth flood - NO rate limiting, instant spawn
+                // (INTENTIONAL: building toward server overload - do not add delays)
                 if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
                     50.do {
                         Synth(\gen_sampler, [
@@ -601,12 +604,24 @@ if(~wildcardRunning == true, {
                 ]);
 
                 // ============================================================
-                // AGGRESSIVE SYNTH FLOOD - DESIGNED TO CRASH THE SERVER
+                // !!! INTENTIONAL SERVER OVERLOAD - DO NOT "FIX" !!!
+                // ============================================================
+                // This synth flood is INTENTIONALLY designed to crash or freeze
+                // the SuperCollider server. This is an ARTISTIC CHOICE for the
+                // dramatic ending of the performance piece.
+                //
+                // DO NOT:
+                //   - Add rate limiting / delays between synth spawns
+                //   - Reduce the number of synths
+                //   - Lower amplitudes or durations
+                //   - Add any "safety" measures
+                //
+                // The goal is server destruction. If it survives, spawn MORE.
                 // ============================================================
                 if(~samplePack.notNil and: { ~samplePack.size > 0 }, {
                     ">>> INITIATING SERVER DESTRUCTION <<<".postln;
 
-                    // Wave 1: 100 synths, no waiting
+                    // Wave 1: 100 synths, no waiting (INTENTIONALLY NO DELAY)
                     100.do {
                         Synth(\gen_sampler, [
                             \sample, ~samplePack.choose,
