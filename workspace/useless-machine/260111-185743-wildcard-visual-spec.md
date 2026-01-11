@@ -1,0 +1,1082 @@
+# Wildcard Visual Mode Spec
+
+## Overview
+
+Extend wildcard.scd to visually update the control panel section of soundtest.scd (lines ~800-860) in real-time, then execute the modified code. This creates a "possessed IDE" effect where the user sees dot controllers changing autonomously.
+
+## Goals
+
+1. Mutations modify visible source code in the IDE
+2. Modified code blocks auto-execute after text replacement
+3. User can watch chaos unfold in real-time
+4. Maintains compatibility with existing runtime-only mode
+
+## Target Region
+
+The control panel in soundtest.scd (~L817-870):
+
+```supercollider
+( ~rev.(
+    "........."
+))
+
+( ~speed.(
+    "....."
+))
+
+( ~jitter.(
+    "...."
+))
+```
+
+## API Research Summary
+
+### Document Manipulation
+
+| Method | Purpose |
+|--------|---------|
+| `Document.current` | Get active document |
+| `selectedString_(text)` | Replace selection with text |
+| `selectRange(start, length)` | Select character range |
+| `selectionStart` | Get cursor position |
+| `string` | Get full document text |
+| `getText(start, range)` | Get text at position |
+
+### Code Execution
+
+| Method | Purpose |
+|--------|---------|
+| `"code".interpret` | Compile and execute string |
+| `"code".interpretPrint` | Execute and print result |
+
+### Reference Implementation
+
+ddwSnippets Quark (jamshark70) uses:
+```supercollider
+doc = Document.current;
+doc.selectedString_(snippetText);
+doc.selectRange(pos, length);
+```
+
+## Architecture
+
+### New Files
+
+```
+projects/glitch-workshop/
+├── soundtest.scd          # existing
+├── wildcard.scd           # existing (modify)
+└── wildcard-visual.scd    # new: visual mode extension
+```
+
+### Mode Toggle
+
+```supercollider
+~wildcardVisualMode = false;  // default: runtime-only (current behavior)
+~wildcardVisualMode = true;   // visual: modify source + execute
+```
+
+### Core Functions
+
+#### 1. Document Scanner
+
+Find and parse control panel region:
+
+```supercollider
+~visualFindControlPanel = {
+    var doc = Document.current;
+    var text = doc.string;
+    var startMarker = "// ==================== CONTROLS ====================";
+    var endMarker = "// ==================== ADJUSTMENTS ====================";
+    var startPos = text.find(startMarker);
+    var endPos = text.find(endMarker);
+
+    if(startPos.isNil or: endPos.isNil, {
+        "ERROR: Control panel markers not found".postln;
+        ^nil;
+    });
+
+    (start: startPos, end: endPos, text: text[startPos..endPos]);
+};
+```
+
+#### 2. Dot Controller Registry
+
+Map controllers to their document positions:
+
+```supercollider
+~visualControllers = IdentityDictionary[
+    \rev -> (
+        pattern: "~rev.(",
+        minDots: 0,
+        maxDots: 10,
+        lineOffset: nil,  // populated by scanner
+        dotStart: nil,
+        dotEnd: nil,
+    ),
+    \speed -> (
+        pattern: "~speed.(",
+        minDots: 0,
+        maxDots: 10,
+        lineOffset: nil,
+        dotStart: nil,
+        dotEnd: nil,
+    ),
+    // ... etc
+];
+```
+
+#### 3. Dot String Generator
+
+```supercollider
+~visualMakeDots = {|count|
+    String.fill(count, $.);
+};
+```
+
+#### 4. Controller Updater
+
+```supercollider
+~visualUpdateController = {|name, dotCount|
+    var doc = Document.current;
+    var info = ~visualControllers[name];
+    var newDots = ~visualMakeDots.(dotCount.clip(info.minDots, info.maxDots));
+    var code;
+
+    if(info.dotStart.isNil, {
+        "ERROR: Controller % not scanned".format(name).postln;
+        ^nil;
+    });
+
+    // Method 1: Direct text replacement + interpret
+    code = "( ~" ++ name ++ ".(\"" ++ newDots ++ "\"))";
+    code.interpret;
+
+    // Method 2: Visual update (modify document text)
+    if(~wildcardVisualMode, {
+        doc.selectRange(info.dotStart, info.dotEnd - info.dotStart);
+        doc.selectedString_(newDots);
+    });
+
+    name ++ ": " ++ newDots;
+};
+```
+
+#### 5. Pattern Finder
+
+Locate dot strings within controller blocks:
+
+```supercollider
+~visualScanController = {|name|
+    var doc = Document.current;
+    var text = doc.string;
+    var info = ~visualControllers[name];
+    var patternPos = text.find(info.pattern);
+    var searchStart, quoteStart, quoteEnd;
+
+    if(patternPos.isNil, { ^nil });
+
+    // Find the dot string: look for "......" after pattern
+    searchStart = patternPos + info.pattern.size;
+    quoteStart = text.find("\"", offset: searchStart);
+    quoteEnd = text.find("\"", offset: quoteStart + 1);
+
+    if(quoteStart.notNil and: quoteEnd.notNil, {
+        info.dotStart = quoteStart + 1;
+        info.dotEnd = quoteEnd;
+        info.currentDots = text[info.dotStart..info.dotEnd - 1];
+    });
+
+    info;
+};
+```
+
+## Mutation Integration
+
+### Modified Jitter Mutation
+
+```supercollider
+~wildcardJitterVisual = {
+    var newJitter = rrand(0.1, 0.5);
+    var dotCount = (newJitter * 10).round.asInteger;  // 0-10 dots for 0-1 range
+
+    // Runtime update (always)
+    ~playheadJitter = newJitter;
+
+    // Visual update (if enabled)
+    if(~wildcardVisualMode, {
+        ~visualUpdateController.(\jitter, dotCount);
+    });
+
+    ~wildcardSpam.(">>> WILDCARD 지터: " ++ newJitter.round(0.01) ++ " <<<");
+};
+```
+
+### Controller Mapping
+
+| Mutation | Controller | Value Range | Dot Range |
+|----------|------------|-------------|-----------|
+| jitter | `~jitter` | 0.0-0.3 | 0-10 |
+| stutter (prob) | N/A | runtime only | - |
+| stutter (dur) | N/A | runtime only | - |
+| speed | `~speed` | 0-200% | 0-10 |
+| reverb | `~rev` | 0.0-1.0 | 0-10 |
+| silence | `~silence` | 0.0-0.3 | 0-10 |
+
+## Visual Effects
+
+### Mutation Breadcrumb (WILDCARD WAS HERE)
+
+Every mutation leaves a large, visible comment block above the modified controller. This serves as:
+1. **Visual landmark** - User can spot changes while scrolling
+2. **Navigation aid** - Cmd+F for "WILDCARD" finds all mutations
+3. **Audit trail** - Shows what was changed and when
+
+#### Breadcrumb Format
+
+```supercollider
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ██╗    ██╗██╗██╗     ██████╗  ██████╗ █████╗ ██████╗ ██████╗ ║
+// ║  ██║    ██║██║██║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗║
+// ║  ██║ █╗ ██║██║██║     ██║  ██║██║     ███████║██████╔╝██║  ██║║
+// ║  ██║███╗██║██║██║     ██║  ██║██║     ██╔══██║██╔══██╗██║  ██║║
+// ║  ╚███╔███╔╝██║███████╗██████╔╝╚██████╗██║  ██║██║  ██║██████╔╝║
+// ║   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ║
+// ║                    W A S   H E R E                           ║
+// ║  mutation: JITTER | value: 0.32 | level: 3                   ║
+// ╚══════════════════════════════════════════════════════════════╝
+```
+
+#### Compact Alternative (for rapid mutations)
+
+```supercollider
+// ▓▓▓ WILDCARD #42 ▓▓▓ JITTER -> 0.32 ▓▓▓ 14:23:07 ▓▓▓
+```
+
+#### Breadcrumb Generator
+
+```supercollider
+~visualBreadcrumb = {|mutation, value, compact = false|
+    var timestamp = Date.localtime.format("%H:%M:%S");
+    var count = ~wildcardMutationCount;
+
+    if(compact, {
+        "// ▓▓▓ WILDCARD #% ▓▓▓ % -> % ▓▓▓ % ▓▓▓".format(
+            count, mutation.asString.toUpper, value.round(0.01), timestamp
+        );
+    }, {
+        [
+            "// ╔══════════════════════════════════════════════════════════════╗",
+            "// ║  ██╗    ██╗██╗██╗     ██████╗  ██████╗ █████╗ ██████╗ ██████╗ ║",
+            "// ║  ██║    ██║██║██║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗║",
+            "// ║  ██║ █╗ ██║██║██║     ██║  ██║██║     ███████║██████╔╝██║  ██║║",
+            "// ║  ██║███╗██║██║██║     ██║  ██║██║     ██╔══██║██╔══██╗██║  ██║║",
+            "// ║  ╚███╔███╔╝██║███████╗██████╔╝╚██████╗██║  ██║██║  ██║██████╔╝║",
+            "// ║   ╚══╝╚══╝ ╚═╝╚══════╝╚═════╝  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ║",
+            "// ║                    W A S   H E R E                           ║",
+            "// ║  mutation: % | value: % | level: %                   ║".format(
+                mutation.asString.toUpper.padRight(6),
+                value.round(0.01).asString.padRight(4),
+                ~wildcardLevel
+            ),
+            "// ╚══════════════════════════════════════════════════════════════╝",
+        ].join("\n");
+    });
+};
+```
+
+#### Breadcrumb Insertion
+
+```supercollider
+~visualInsertBreadcrumb = {|name, value|
+    var doc = Document.current;
+    var info = ~visualControllers[name];
+    var breadcrumb, insertPos, useCompact;
+
+    // Use compact format at higher chaos levels (too many mutations)
+    useCompact = (~wildcardLevel >= 4) or: (~wildcardMutationCount > 20);
+
+    breadcrumb = ~visualBreadcrumb.(name, value, useCompact);
+
+    // Find line start before the controller
+    insertPos = info.lineStart ? info.dotStart;  // fallback to dot position
+
+    // Insert breadcrumb + newline before the controller block
+    doc.selectRange(insertPos, 0);
+    doc.selectedString_(breadcrumb ++ "\n");
+
+    // IMPORTANT: Rescan positions after insertion (text shifted)
+    ~visualRescanAfterInsert.(name, breadcrumb.size + 1);
+};
+```
+
+#### Cleanup Function
+
+```supercollider
+// Remove all wildcard breadcrumbs from document
+~visualCleanBreadcrumbs = {
+    var doc = Document.current;
+    var text = doc.string;
+    var pattern = "// [▓╔║╚].*WILDCARD.*";  // regex-like pattern
+
+    // Find and remove all breadcrumb blocks
+    // Implementation: iterate through matches, remove from end to start
+    // (reverse order prevents position shifting issues)
+
+    "Cleaned % breadcrumbs".format(removedCount).postln;
+};
+```
+
+#### Breadcrumb Settings
+
+```supercollider
+~visualBreadcrumbMode = \full;    // \full, \compact, \none
+~visualBreadcrumbLimit = 50;      // max breadcrumbs before auto-cleanup
+~visualBreadcrumbAutoClean = true; // remove old ones as new ones added
+```
+
+### Chaos Text in Document
+
+At higher levels, inject visual chaos into comments:
+
+```supercollider
+~visualInjectChaos = {|level|
+    var doc = Document.current;
+    var chaosComment;
+
+    if(level >= 4, {
+        chaosComment = "// " ++ ~chaosString.(30);
+        // Insert at specific marker position
+        // ...
+    });
+};
+```
+
+### Cursor Animation
+
+Make cursor jump around during mutations:
+
+```supercollider
+~visualAnimateCursor = {|targetPos|
+    var doc = Document.current;
+    doc.selectRange(targetPos, 0);  // Move cursor without selection
+};
+```
+
+## Execution Flow
+
+```
+~wildcardStart.()
+    │
+    ├── if(~wildcardVisualMode) {
+    │       ~visualScanAllControllers.()  // Build position map
+    │   }
+    │
+    └── main loop
+            │
+            ├── select mutation (jitter, stutter, etc.)
+            │
+            ├── if(~wildcardVisualMode) {
+            │       ~visualUpdateController.(name, value)
+            │       // Text changes visible in IDE
+            │   }
+            │
+            └── apply runtime change (always)
+```
+
+## Safety
+
+### Document Validation
+
+```supercollider
+~visualValidateDocument = {
+    var doc = Document.current;
+    var path = doc.path;
+
+    // Only modify soundtest.scd
+    if(path.notNil and: { path.contains("soundtest.scd") }, {
+        true;
+    }, {
+        "WARNING: Visual mode only works with soundtest.scd open".postln;
+        false;
+    });
+};
+```
+
+### Undo Support
+
+Document modifications should be undoable via Cmd+Z. No special handling needed - IDE tracks changes automatically.
+
+## User Interface
+
+### Activation
+
+```supercollider
+// In soundtest.scd control section, add:
+~wildcardVisualMode = true;   // Enable visual mutations
+~wildcardVisualMode = false;  // Runtime-only (default)
+
+// Or toggle function:
+~visualToggle = {
+    ~wildcardVisualMode = ~wildcardVisualMode.not;
+    "Visual mode: " ++ ~wildcardVisualMode;
+};
+```
+
+### Status Display
+
+```supercollider
+~wildcardStatus = {
+    // ... existing status ...
+    ("Visual mode: " ++ ~wildcardVisualMode).postln;
+    if(~wildcardVisualMode, {
+        ("Tracked controllers: " ++ ~visualControllers.keys).postln;
+    });
+};
+```
+
+## Platform Considerations
+
+| Platform | Notes |
+|----------|-------|
+| macOS | IDE may swallow some Cmd keys |
+| Windows | Use `getTextAsync` instead of `string` for reliability |
+| Linux | Best compatibility with ddwSnippets approach |
+
+## Incremental Implementation & Verification
+
+This is uncharted territory. Each milestone includes standalone test snippets that MUST pass before proceeding.
+
+---
+
+### Milestone 0: API Capability Probing
+
+**Goal:** Verify the Document API actually works as documented.
+
+**Test 0.1: Document.current exists**
+```supercollider
+// RUN THIS FIRST - does Document.current return something?
+(
+var doc = Document.current;
+if(doc.isNil, {
+    "FAIL: Document.current is nil".postln;
+}, {
+    "PASS: Document.current = %".format(doc).postln;
+    "  class: %".format(doc.class).postln;
+    "  path: %".format(doc.path).postln;
+});
+)
+```
+Expected: Returns a Document object, not nil.
+
+**Test 0.2: Can we read document text?**
+```supercollider
+(
+var doc = Document.current;
+var text;
+
+// Try synchronous first
+try {
+    text = doc.string;
+    if(text.isNil, {
+        "WARN: doc.string returned nil".postln;
+    }, {
+        "PASS: doc.string works, length = %".format(text.size).postln;
+        "  first 50 chars: %".format(text[0..49].asString).postln;
+    });
+} { |error|
+    "FAIL: doc.string threw: %".format(error).postln;
+    "  trying getTextAsync...".postln;
+};
+)
+```
+Expected: Returns document contents as string.
+
+**Test 0.3: Can we get selection info?**
+```supercollider
+(
+var doc = Document.current;
+"selectionStart: %".format(doc.selectionStart).postln;
+"selectionSize: %".format(doc.selectionSize).postln;
+)
+```
+Expected: Returns integers (cursor position).
+
+**Test 0.4: Can we SET a selection range?**
+```supercollider
+// This should select characters 10-20 in the document
+(
+var doc = Document.current;
+doc.selectRange(10, 10);
+"After selectRange(10,10):".postln;
+"  selectionStart: %".format(doc.selectionStart).postln;
+"  selectionSize: %".format(doc.selectionSize).postln;
+)
+```
+Expected: Selection visibly changes in IDE, values update.
+
+**Test 0.5: Can we REPLACE selected text?**
+```supercollider
+// WARNING: This WILL modify your document!
+// First, manually select some text, then run:
+(
+var doc = Document.current;
+var before = doc.selectedString;
+"Before: '%'".format(before).postln;
+doc.selectedString_("REPLACED");
+"After: '%'".format(doc.selectedString).postln;
+"Check document - did it change?".postln;
+)
+// Cmd+Z to undo
+```
+Expected: Selected text is replaced with "REPLACED".
+
+**Test 0.6: Can we execute a string?**
+```supercollider
+(
+var code = "1 + 2 + 3";
+var result = code.interpret;
+"'%'.interpret = %".format(code, result).postln;
+if(result == 6, { "PASS".postln }, { "FAIL".postln });
+)
+```
+Expected: Returns 6.
+
+**Milestone 0 Exit Criteria:**
+- [ ] All 6 tests pass
+- [ ] Document which tests failed (if any) and on what platform
+- [ ] If any test fails, STOP and investigate before proceeding
+
+---
+
+### Milestone 1: Read-Only Document Inspection
+
+**Goal:** Build tooling to find and parse the control panel WITHOUT modifying anything.
+
+**Test 1.1: Find a known string pattern**
+```supercollider
+(
+var doc = Document.current;
+var text = doc.string;
+var pattern = "~rev.(";
+var pos = text.find(pattern);
+
+if(pos.isNil, {
+    "FAIL: Could not find '%' in document".format(pattern).postln;
+}, {
+    "PASS: Found '%' at position %".format(pattern, pos).postln;
+    "  context: '%'".format(text[pos..pos+30]).postln;
+});
+)
+```
+
+**Test 1.2: Find the dot string within a controller**
+```supercollider
+(
+var doc = Document.current;
+var text = doc.string;
+var controllerStart = text.find("~rev.(");
+var searchRegion, quoteStart, quoteEnd, dots;
+
+if(controllerStart.isNil, { "FAIL: controller not found".postln; ^nil });
+
+// Look for the quoted string after the controller
+searchRegion = text[controllerStart..controllerStart+100];
+quoteStart = searchRegion.find("\"");
+quoteEnd = searchRegion.find("\"", quoteStart + 1);
+
+if(quoteStart.isNil or: quoteEnd.isNil, {
+    "FAIL: Could not find quoted string".postln;
+    "  searchRegion: '%'".format(searchRegion).postln;
+}, {
+    dots = searchRegion[quoteStart+1..quoteEnd-1];
+    "PASS: Found dots = '%' (% chars)".format(dots, dots.size).postln;
+    "  absolute positions: % to %".format(
+        controllerStart + quoteStart + 1,
+        controllerStart + quoteEnd
+    ).postln;
+});
+)
+```
+
+**Test 1.3: Parse all controllers into registry**
+```supercollider
+(
+var doc = Document.current;
+var text = doc.string;
+var controllers = [\rev, \speed, \jitter, \silence, \fade];
+var registry = IdentityDictionary.new;
+
+controllers.do {|name|
+    var pattern = "~" ++ name ++ ".(";
+    var pos = text.find(pattern);
+    var searchRegion, q1, q2, dots, absStart, absEnd;
+
+    if(pos.notNil, {
+        searchRegion = text[pos..pos+100];
+        q1 = searchRegion.find("\"");
+        q2 = searchRegion.find("\"", q1 + 1);
+
+        if(q1.notNil and: q2.notNil, {
+            absStart = pos + q1 + 1;
+            absEnd = pos + q2;
+            dots = text[absStart..absEnd-1];
+            registry[name] = (
+                pattern: pattern,
+                dotStart: absStart,
+                dotEnd: absEnd,
+                currentDots: dots,
+            );
+            "  %: found at %, dots='%'".format(name, absStart, dots).postln;
+        }, {
+            "  %: WARN - found pattern but no quotes".format(name).postln;
+        });
+    }, {
+        "  %: not found".format(name).postln;
+    });
+};
+
+"Registry built with % entries".format(registry.size).postln;
+~testRegistry = registry;  // save for next test
+)
+```
+
+**Milestone 1 Exit Criteria:**
+- [ ] Can find all target controllers
+- [ ] Position values are accurate (verify by selecting with selectRange)
+- [ ] No document modifications occurred
+
+---
+
+### Milestone 2: Single Text Replacement
+
+**Goal:** Successfully replace ONE dot string, ONE time.
+
+**Test 2.1: Replace dots at known position**
+```supercollider
+// Uses registry from Test 1.3
+// WARNING: Modifies document!
+(
+var doc = Document.current;
+var info = ~testRegistry[\rev];
+var newDots = "..........";  // 10 dots
+var len;
+
+if(info.isNil, { "FAIL: No registry for \\rev".postln; ^nil });
+
+len = info.dotEnd - info.dotStart;
+"Replacing % chars at position % with '%'".format(len, info.dotStart, newDots).postln;
+
+doc.selectRange(info.dotStart, len);
+"Selected: '%'".format(doc.selectedString).postln;
+
+doc.selectedString_(newDots);
+"Replaced. Check document!".postln;
+)
+// Cmd+Z to undo
+```
+
+**Test 2.2: Replace AND execute**
+```supercollider
+(
+var doc = Document.current;
+var newDots = ".....";
+var code = "( ~rev.(\"" ++ newDots ++ "\"))";
+
+"Executing: %".format(code).postln;
+code.interpret;
+"Check: ~genReverb = %".format(~genReverb).postln;
+)
+```
+
+**Test 2.3: Combined visual + execute**
+```supercollider
+(
+var doc = Document.current;
+var info = ~testRegistry[\rev];
+var newDots = "...";
+var code, len;
+
+if(info.isNil, { ^nil });
+
+// Visual update
+len = info.dotEnd - info.dotStart;
+doc.selectRange(info.dotStart, len);
+doc.selectedString_(newDots);
+
+// Execute
+code = "( ~rev.(\"" ++ newDots ++ "\"))";
+code.interpret;
+
+"Visual + Execute complete. ~genReverb = %".format(~genReverb).postln;
+)
+```
+
+**Milestone 2 Exit Criteria:**
+- [ ] Single replacement works
+- [ ] Execute works
+- [ ] Combined works
+- [ ] Undo (Cmd+Z) works after modification
+
+---
+
+### Milestone 3: Position Tracking After Insertion
+
+**Goal:** Handle the hard problem - positions shift when text is inserted.
+
+**Test 3.1: Verify position shift problem**
+```supercollider
+(
+var doc = Document.current;
+var text1, text2, pos1, pos2;
+
+// Find position of ~jitter
+text1 = doc.string;
+pos1 = text1.find("~jitter.(");
+"Before insertion: ~jitter at %".format(pos1).postln;
+
+// Insert 20 characters at position 100
+doc.selectRange(100, 0);
+doc.selectedString_("/* INSERTED TEXT */");
+
+// Find position again
+text2 = doc.string;
+pos2 = text2.find("~jitter.(");
+"After insertion: ~jitter at %".format(pos2).postln;
+"Shift: % characters".format(pos2 - pos1).postln;
+)
+// Cmd+Z to undo
+```
+Expected: Position increases by ~19 characters.
+
+**Test 3.2: Rescan after modification**
+```supercollider
+// Strategy: rescan ALL positions after ANY modification
+(
+~visualRescanAll = {
+    var doc = Document.current;
+    var text = doc.string;
+
+    ~testRegistry.keysValuesDo {|name, info|
+        var pos = text.find(info.pattern);
+        var q1, q2, region;
+
+        if(pos.notNil, {
+            region = text[pos..pos+100];
+            q1 = region.find("\"");
+            q2 = region.find("\"", q1 + 1);
+
+            if(q1.notNil and: q2.notNil, {
+                info.dotStart = pos + q1 + 1;
+                info.dotEnd = pos + q2;
+                info.currentDots = text[info.dotStart..info.dotEnd-1];
+            });
+        });
+    };
+    "Rescanned % controllers".format(~testRegistry.size).postln;
+};
+
+~visualRescanAll.();
+)
+```
+
+**Test 3.3: Insert breadcrumb then update controller**
+```supercollider
+(
+var doc = Document.current;
+var info = ~testRegistry[\rev];
+var breadcrumb = "// ▓▓▓ WILDCARD TEST ▓▓▓\n";
+var newDots = "........";
+var lineStart, len;
+
+if(info.isNil, { ^nil });
+
+// Find line start (search backwards for newline)
+lineStart = doc.string[0..info.dotStart].findBackwards("\n");
+lineStart = if(lineStart.isNil, { 0 }, { lineStart + 1 });
+
+"Inserting breadcrumb at line start %".format(lineStart).postln;
+
+// Insert breadcrumb
+doc.selectRange(lineStart, 0);
+doc.selectedString_(breadcrumb);
+
+// CRITICAL: Rescan positions
+~visualRescanAll.();
+
+// Now update the dots
+info = ~testRegistry[\rev];  // get updated positions
+len = info.dotEnd - info.dotStart;
+doc.selectRange(info.dotStart, len);
+doc.selectedString_(newDots);
+
+"Complete. Check document!".postln;
+)
+// Cmd+Z twice to undo
+```
+
+**Milestone 3 Exit Criteria:**
+- [ ] Understand position shift behavior
+- [ ] Rescan function works reliably
+- [ ] Breadcrumb + update works in sequence
+
+---
+
+### Milestone 4: Repeated Operations
+
+**Goal:** Handle multiple mutations without accumulating errors.
+
+**Test 4.1: 5 mutations in sequence**
+```supercollider
+(
+var controllers = [\rev, \jitter, \speed, \rev, \jitter];
+var dotCounts = [3, 7, 5, 10, 0];
+
+controllers.do {|name, i|
+    var info, newDots, len, doc;
+
+    ~visualRescanAll.();  // Always rescan first
+    info = ~testRegistry[name];
+    if(info.isNil, {
+        "SKIP: % not in registry".format(name).postln;
+    }, {
+        newDots = String.fill(dotCounts[i], $.);
+        doc = Document.current;
+        len = info.dotEnd - info.dotStart;
+
+        doc.selectRange(info.dotStart, len);
+        doc.selectedString_(newDots);
+        "Mutation %: % -> '%'".format(i+1, name, newDots).postln;
+
+        0.1.wait;  // Small delay to let IDE update
+    });
+};
+"5 mutations complete".postln;
+)
+```
+
+**Test 4.2: Mutation with breadcrumbs**
+```supercollider
+(
+{
+    3.do {|i|
+        var name = [\rev, \jitter, \speed][i];
+        var info, doc, lineStart, breadcrumb, newDots, len;
+
+        ~visualRescanAll.();
+        info = ~testRegistry[name];
+        if(info.notNil, {
+            doc = Document.current;
+
+            // Insert breadcrumb
+            lineStart = doc.string[0..info.dotStart].findBackwards("\n") + 1;
+            breadcrumb = "// ▓▓▓ WILDCARD #% ▓▓▓ % ▓▓▓\n".format(i+1, name);
+            doc.selectRange(lineStart, 0);
+            doc.selectedString_(breadcrumb);
+
+            // Rescan and update
+            ~visualRescanAll.();
+            info = ~testRegistry[name];
+            newDots = String.fill(5.rand + 1, $.);
+            len = info.dotEnd - info.dotStart;
+            doc.selectRange(info.dotStart, len);
+            doc.selectedString_(newDots);
+
+            "Mutation % complete".format(i+1).postln;
+        });
+        0.5.wait;
+    };
+    "All mutations complete".postln;
+}.fork;
+)
+```
+
+**Milestone 4 Exit Criteria:**
+- [ ] Multiple sequential mutations work
+- [ ] Breadcrumb insertion doesn't break subsequent operations
+- [ ] No position drift over time
+
+---
+
+### Milestone 5: Integration with Wildcard
+
+**Goal:** Wire visual mode into existing wildcard mutations.
+
+**Test 5.1: Visual jitter mutation**
+```supercollider
+// Add to wildcard.scd or test standalone
+(
+~wildcardJitterVisual = {
+    var newJitter = rrand(0.1, 0.5);
+    var dotCount = (newJitter / 0.3 * 10).round.asInteger.clip(0, 10);
+    var info, doc, newDots, len;
+
+    // Runtime update (always)
+    ~playheadJitter = newJitter;
+
+    // Visual update (if enabled)
+    if(~wildcardVisualMode == true, {
+        ~visualRescanAll.();
+        info = ~testRegistry[\jitter];
+        if(info.notNil, {
+            doc = Document.current;
+            newDots = String.fill(dotCount, $.);
+            len = info.dotEnd - info.dotStart;
+            doc.selectRange(info.dotStart, len);
+            doc.selectedString_(newDots);
+        });
+    });
+
+    "JITTER: % (% dots)".format(newJitter.round(0.01), dotCount).postln;
+};
+
+// Test it
+~wildcardVisualMode = true;
+~wildcardJitterVisual.();
+)
+```
+
+**Milestone 5 Exit Criteria:**
+- [ ] Visual mutations work when ~wildcardVisualMode = true
+- [ ] Runtime-only mode still works when false
+- [ ] No errors during normal wildcard operation
+
+---
+
+### Milestone 6: Error Handling & Recovery
+
+**Goal:** Graceful failure when things go wrong.
+
+**Failure Scenarios to Handle:**
+1. Document.current is nil (no document open)
+2. Controller pattern not found (document modified externally)
+3. Position out of bounds
+4. selectRange fails silently
+5. IDE becomes unresponsive
+
+**Test 6.1: Defensive wrapper**
+```supercollider
+(
+~visualSafeUpdate = {|name, newDots|
+    var doc, info, len, result;
+
+    // Check document
+    doc = Document.current;
+    if(doc.isNil, {
+        "WARN: No document open".postln;
+        ^false;
+    });
+
+    // Check document is soundtest
+    if(doc.path.isNil or: { doc.path.contains("soundtest").not }, {
+        "WARN: Not editing soundtest.scd".postln;
+        ^false;
+    });
+
+    // Rescan and check registry
+    ~visualRescanAll.();
+    info = ~testRegistry[name];
+    if(info.isNil, {
+        "WARN: Controller % not found".format(name).postln;
+        ^false;
+    });
+
+    // Validate positions
+    len = info.dotEnd - info.dotStart;
+    if(len < 0 or: { info.dotStart < 0 }, {
+        "WARN: Invalid positions for %".format(name).postln;
+        ^false;
+    });
+
+    // Attempt update
+    try {
+        doc.selectRange(info.dotStart, len);
+        doc.selectedString_(newDots);
+        result = true;
+    } { |error|
+        "ERROR: Update failed: %".format(error).postln;
+        result = false;
+    };
+
+    result;
+};
+
+// Test
+~visualSafeUpdate.(\rev, ".....");
+)
+```
+
+**Milestone 6 Exit Criteria:**
+- [ ] Graceful failure messages, no crashes
+- [ ] Visual mode auto-disables on repeated failures
+- [ ] Recovery path documented
+
+---
+
+## Fallback Strategies
+
+If a milestone fails, try these alternatives:
+
+| Problem | Fallback |
+|---------|----------|
+| `doc.string` unreliable | Use `getTextAsync` with callback |
+| `selectRange` doesn't work | Try `doc.select(pos, len)` instead |
+| `selectedString_` fails | Try writing to file and reloading |
+| Position tracking too fragile | Use markers/anchors instead of absolute positions |
+| IDE freezes on rapid updates | Add rate limiting (min 100ms between updates) |
+| Platform-specific issues | Detect platform, use platform-specific code paths |
+
+## Debug Tooling
+
+```supercollider
+// Add to wildcard-visual.scd
+~visualDebug = true;
+
+~visualLog = {|msg|
+    if(~visualDebug, { ("VISUAL: " ++ msg).postln });
+};
+
+~visualDumpRegistry = {
+    "=== VISUAL REGISTRY ===".postln;
+    ~testRegistry.keysValuesDo {|k, v|
+        "  %: dots=% start=% end=%".format(
+            k, v.currentDots.size, v.dotStart, v.dotEnd
+        ).postln;
+    };
+};
+
+~visualTestSelect = {|name|
+    var info = ~testRegistry[name];
+    if(info.notNil, {
+        Document.current.selectRange(info.dotStart, info.dotEnd - info.dotStart);
+        "Selected % - check IDE".format(name).postln;
+    });
+};
+```
+
+## Open Questions
+
+1. **Async vs Sync**: Should text updates be synchronous or use `getTextAsync`?
+2. **Multi-document**: What if user has multiple documents open?
+3. **Scroll behavior**: Should document auto-scroll to show mutations?
+4. **Rate limiting**: How fast can we update text without lag?
+5. **Undo grouping**: Can multiple mutations be undone as one operation?
+
+## Implementation Checklist
+
+- [ ] Milestone 0: API Probing (all 6 tests pass)
+- [ ] Milestone 1: Read-only inspection
+- [ ] Milestone 2: Single replacement
+- [ ] Milestone 3: Position tracking
+- [ ] Milestone 4: Repeated operations
+- [ ] Milestone 5: Wildcard integration
+- [ ] Milestone 6: Error handling
+
+**Rule: Do not proceed to Milestone N+1 until Milestone N is complete and verified.**
+
+## References
+
+- [Document class docs](https://doc.sccode.org/Classes/Document.html)
+- [String.interpret](https://doc.sccode.org/Classes/String.html)
+- [ddwSnippets source](https://github.com/jamshark70/ddwSnippets/blob/master/ddwSnippets.sc)
+- [GitHub Issue #646](https://github.com/supercollider/supercollider/issues/646) - Text insertion API discussion
