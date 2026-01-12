@@ -69,6 +69,12 @@ var m09Dir = m2Dir +/+ "../m09/";
 
         // Replace
         doc.selectRange(utf16Start, utf16Len);
+
+        // DEBUG: What did selectRange actually select?
+        "[DEBUG] selectRange selected: '%' (% bytes)".format(
+            doc.selectedString, doc.selectedString.size
+        ).postln;
+
         doc.selectedString_(newValue);
 
         // VERIFY: Re-read and check the result
@@ -181,6 +187,15 @@ var m09Dir = m2Dir +/+ "../m09/";
 }.defer(0.3);
 )
 
+//
+  // ISOLATED EMOJI TEST - run after SETUP and HELPER blocks
+  // ISOLATED EMOJI TEST - with proper Routine context
+(
+  {
+      var ok = ~replaceController.(~targetDoc, "emoji", "0.3");
+      "[TEST] emoji: %".format(if(ok, "PASS", "FAIL")).postln;
+  }.fork(AppClock);
+)
 // ============================================================
 // TEST 3.1: Unicode placeholders (UTF-16 conversion critical)
 // ============================================================
