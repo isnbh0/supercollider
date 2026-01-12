@@ -199,3 +199,46 @@ var newPos = ~m1Registry[\jitter].byteStart;
 ```
 
 **Rule:** One modification → one rescan. Don't batch multiple edits with stale positions.
+
+---
+
+## `var` declarations must be at the top of a block
+
+**Date:** 2026-01-12
+
+**Problem:**
+```supercollider
+if (condition) {
+    "doing something".postln;
+    var x = 5;  // ERROR!
+};
+```
+
+```
+ERROR: syntax error, unexpected VAR, expecting '}'
+```
+
+**Why:** SuperCollider requires all `var` declarations at the very beginning of a function or block, before any executable statements.
+
+**Solution:**
+```supercollider
+if (condition) {
+    var x;  // Declare first
+    "doing something".postln;
+    x = 5;  // Assign later
+};
+```
+
+Or declare all vars at function top:
+```supercollider
+{ |arg1, arg2|
+    var x, y, z;  // ALL vars here
+
+    if (condition) {
+        x = 5;
+        // ...
+    };
+}
+```
+
+**Rule:** Vars go at the top. Always.

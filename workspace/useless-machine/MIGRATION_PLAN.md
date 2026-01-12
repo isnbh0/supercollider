@@ -256,7 +256,7 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 15 | 7db74cc | Add visual spec + M0 tests | DONE |
 | 16 | 5d95233 | Implement M09 converter | DONE |
 | 17 | e7baeed | Add M1 inspection + TIL | DONE |
-| 18 | 2576d09 | Move tests to tests/ | |
+| 18 | 2576d09 | Move tests to tests/ | DONE |
 | 19 | 5363df0 | Add M15 test utilities | |
 | 20 | b0305c8 | Add M2 test framework | |
 | 21 | 85912d7 | Add surrogate pairs bug report | |
