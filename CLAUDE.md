@@ -48,12 +48,10 @@ brew install portaudio
 **Build:**
 ```bash
 mkdir -p build && cd build
-/Applications/CMake.app/Contents/bin/cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSC_USE_QTWEBENGINE=OFF ..
+/Applications/CMake.app/Contents/bin/cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 /Applications/CMake.app/Contents/bin/cmake --build . -j$(sysctl -n hw.ncpu)
 /Applications/CMake.app/Contents/bin/cmake --build . --target install
 ```
-
-Note: `-DSC_USE_QTWEBENGINE=OFF` disables the help browser's WebEngine, which can crash on macOS 26+.
 
 **Rebuild after changes:**
 ```bash
@@ -73,7 +71,7 @@ The app bundle is created in `build/Install/SuperCollider/`.
 **With Xcode generator:**
 ```bash
 mkdir -p build && cd build
-/Applications/CMake.app/Contents/bin/cmake -G Xcode -DSC_USE_QTWEBENGINE=OFF ..
+/Applications/CMake.app/Contents/bin/cmake -G Xcode ..
 /Applications/CMake.app/Contents/bin/cmake --build . --target install --config RelWithDebInfo
 ```
 
