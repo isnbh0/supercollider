@@ -255,7 +255,7 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 14 | 0a1ce63 | Remove wildcard.scd | DONE |
 | 15 | 7db74cc | Add visual spec + M0 tests | DONE |
 | 16 | 5d95233 | Implement M09 converter | DONE |
-| 17 | e7baeed | Add M1 inspection + TIL | |
+| 17 | e7baeed | Add M1 inspection + TIL | DONE |
 | 18 | 2576d09 | Move tests to tests/ | |
 | 19 | 5363df0 | Add M15 test utilities | |
 | 20 | b0305c8 | Add M2 test framework | |

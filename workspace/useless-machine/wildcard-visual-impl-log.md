@@ -152,20 +152,56 @@ Where drift accumulates as:
 
 **Goal:** Build tooling to find and parse the control panel WITHOUT modifying anything.
 
-**Status:** In Progress
+**Status:** Complete ✓
 
 **Test File:** `wildcard-visual-m1-inspection.scd`
 
-**Prerequisite:** Load converter functions from `wildcard-visual-m09-converter.scd` first!
+**Test Target:** `wildcard-visual-test-target.scd` (dedicated fixture file)
 
 ### Test Results
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 1.1 | Find known string pattern | PENDING | |
-| 1.2 | Find dot string within controller | PENDING | |
-| 1.3 | Parse all controllers into registry | PENDING | |
-| 1.4 | Verify positions with selectRange | PENDING | Uses byte→UTF-16 converter |
+| 1.1 | Find known string pattern | PASS | Uses File.readAllString |
+| 1.2 | Find dot string within controller | PASS | Extracts dots from `~rev.(` |
+| 1.3 | Parse all controllers into registry | PASS | All 7 controllers parsed |
+| 1.4 | Verify positions with selectRange | PASS | Byte→UTF-16 conversion verified |
+
+### Key Decisions
+
+- Tests 1.1-1.3 use `File.readAllString` instead of `Document.current` for reliability
+- Test 1.4 uses `Document.open(path)` (synchronous) to verify Document API
+- Dedicated test target file avoids false positives from pattern matching in test code
+
+**Milestone 1 Complete** - Proceeding to Milestone 1.5.
+
+---
+
+## Milestone 1.5: Cross-File Document Manipulation (Double-Indirection)
+
+**Goal:** Verify that code loaded from one file can correctly find and modify text in other documents.
+
+**Status:** Not Started
+
+**Test Files:**
+- `test-source.scd` - The "orchestrator" that executes loaded code
+- `test-changer-logic.scd` - Contains the modification logic (loaded, not executed directly)
+- `test-utilities.scd` - Third file to verify cross-file targeting
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 1.5a | Loaded code modifies test-source.scd | PENDING | Changer targets the file that invoked it |
+| 1.5b | Loaded code modifies itself (test-changer-logic.scd) | PENDING | Self-modification |
+| 1.5c | Loaded code modifies third file (test-utilities.scd) | PENDING | True cross-file operation |
+| 1.5d | Document handle persistence after switch | PENDING | Verify handles remain valid |
+
+### Key Questions to Resolve
+
+- Does `Document.open(path)` return existing handle if file is already open?
+- Can we hold multiple Document handles simultaneously?
+- Does modifying a non-current document work without making it "current"?
 
 ---
 
@@ -207,6 +243,64 @@ Where drift accumulates as:
 
 ---
 
+## Milestone 7: Async Cross-File Mutations
+
+**Goal:** Decouple mutation timing from trigger - scheduled/routine-based cross-file modifications.
+
+**Status:** Not Started
+
+**Prerequisite:** M1.5 (cross-file basics) + M4 (repeated operations)
+
+### Key Concepts
+
+- Mutations run on a Routine, not triggered synchronously
+- Random timing between mutations
+- Multiple mutations can queue/overlap
+- Clean shutdown of async processes
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 7.1 | Single delayed mutation | PENDING | fork { 1.wait; mutate } |
+| 7.2 | Repeated mutations on schedule | PENDING | loop { mutate; rrand(0.5, 2).wait } |
+| 7.3 | Random target selection | PENDING | Pick file/controller randomly each iteration |
+| 7.4 | Graceful stop | PENDING | Stop routine without leaving corrupt state |
+
+---
+
+## Milestone 8: Reactive/Watching Mode
+
+**Goal:** Process watches for user changes and responds - with feedback loop control.
+
+**Status:** Not Started
+
+**Prerequisite:** M7 (async patterns)
+
+### Key Concepts
+
+- Detect when user modifies watched file
+- Respond to user changes (echo, transform, propagate)
+- Prevent infinite loops (change → react → change → react...)
+- Optional: controlled feedback loops for intentional effects
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 8.1 | Detect user edit | PENDING | Poll-based or callback-based detection |
+| 8.2 | Single response to change | PENDING | User edits A → system modifies B |
+| 8.3 | Loop prevention | PENDING | Debounce, ignore own changes, or generation counter |
+| 8.4 | Controlled feedback | PENDING | Intentional N-iteration feedback then stop |
+
+### Open Questions
+
+- What's the detection mechanism? (polling `doc.string` vs callbacks if available)
+- How to distinguish user changes from our changes?
+- Rate limiting strategy for rapid user edits
+
+---
+
 ## Decisions & Notes
 
 - M0.5 discovery: `String` uses byte indexing, `Document.selectRange` uses UTF-16 code units
@@ -223,6 +317,12 @@ Where drift accumulates as:
 1. ✓ M0: API Capability Probing
 2. ✓ M0.5: Coordinate System Discovery
 3. ✓ M0.9: Position Converter Utility
-4. → M1: Read-Only Document Inspection (IN PROGRESS)
-5. M2: Single Text Replacement
-6. M3: Position Tracking After Insertion
+4. ✓ M1: Read-Only Document Inspection
+5. → M1.5: Cross-File Document Manipulation (NEXT)
+6. M2: Single Text Replacement
+7. M3: Position Tracking After Insertion
+8. M4: Repeated Operations
+9. M5: Integration with Wildcard
+10. M6: Error Handling & Recovery
+11. M7: Async Cross-File Mutations
+12. M8: Reactive/Watching Mode

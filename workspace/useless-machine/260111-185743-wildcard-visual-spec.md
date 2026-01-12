@@ -670,6 +670,69 @@ This proves that byte positions can be correctly converted to UTF-16 positions f
 
 ---
 
+### Milestone 1.5: Cross-File Document Manipulation (Double-Indirection)
+
+**Goal:** Verify that code loaded from one file can correctly find and modify text in other documents.
+
+**Rationale:** The real wildcard system will load modification logic from one file and execute it to change another. This milestone validates that cross-file Document manipulation works before building on it.
+
+**Test Files:**
+- `test-source.scd` - The "orchestrator" that executes loaded code
+- `test-changer-logic.scd` - Contains the modification logic (loaded, not executed directly)
+- `test-utilities.scd` - Third file to verify cross-file targeting
+
+**Test 1.5a: Loaded code modifies the invoking file**
+```supercollider
+// In test-source.scd:
+// 1. Load test-changer-logic.scd (via File.readAllString + interpret, or thisProcess.interpreter.executeFile)
+// 2. Call a function defined there
+// 3. That function should find and modify a TARGET marker in test-source.scd
+// 4. Verify the modification happened
+
+// test-source.scd contains:
+// TARGET_A: "........."
+
+// test-changer-logic.scd defines:
+~changeTarget = {|targetFile, marker, newValue|
+    var doc = Document.open(targetFile);
+    // ... find marker, replace dots ...
+};
+```
+
+**Test 1.5b: Loaded code modifies itself**
+```supercollider
+// Code loaded from test-changer-logic.scd modifies test-changer-logic.scd
+// This tests self-referential document access
+```
+
+**Test 1.5c: Loaded code modifies a third file**
+```supercollider
+// Code loaded from test-changer-logic.scd modifies test-utilities.scd
+// True cross-file operation: invoker ≠ logic source ≠ target
+```
+
+**Test 1.5d: Document handle persistence**
+```supercollider
+// Open handles to all 3 files
+// Modify one, verify others still accessible
+// Check if Document.open returns same handle for already-open file
+```
+
+**Key Questions to Resolve:**
+- Does `Document.open(path)` return existing handle if file is already open?
+- Can we hold multiple Document handles simultaneously?
+- Does modifying a non-current document work without making it "current"?
+- Does `Document.allDocuments` give us access to already-open documents?
+
+**Milestone 1.5 Exit Criteria:**
+- [ ] Code from file A can modify file B (the invoker)
+- [ ] Code from file A can modify file A (self-modification)
+- [ ] Code from file A can modify file C (third-party file)
+- [ ] Multiple Document handles work simultaneously
+- [ ] Position conversion works correctly across different files
+
+---
+
 ### Milestone 2: Single Text Replacement
 
 **Goal:** Successfully replace ONE dot string, ONE time.
@@ -1052,6 +1115,175 @@ controllers.do {|name, i|
 
 ---
 
+### Milestone 7: Async Cross-File Mutations
+
+**Goal:** Decouple mutation timing from trigger - scheduled/routine-based cross-file modifications.
+
+**Prerequisite:** M1.5 (cross-file basics) + M4 (repeated operations)
+
+**Key Concepts:**
+- Mutations run on a Routine, not triggered synchronously
+- Random timing between mutations
+- Multiple mutations can queue/overlap
+- Clean shutdown of async processes
+
+**Test 7.1: Single delayed mutation**
+```supercollider
+(
+fork {
+    "Mutation scheduled...".postln;
+    1.wait;
+    ~crossFileModify.(targetPath, \\rev, ".....");
+    "Mutation complete".postln;
+};
+)
+```
+
+**Test 7.2: Repeated mutations on schedule**
+```supercollider
+(
+~asyncMutator = fork {
+    inf.do {|i|
+        var target = [\\rev, \\jitter, \\speed].choose;
+        var dots = String.fill(10.rand, $.);
+        "Async mutation %: % -> '%'".format(i, target, dots).postln;
+        ~crossFileModify.(targetPath, target, dots);
+        rrand(0.5, 2.0).wait;
+    };
+};
+)
+
+// Stop with:
+~asyncMutator.stop;
+```
+
+**Test 7.3: Random target selection**
+```supercollider
+// Pick file AND controller randomly each iteration
+(
+~targets = [
+    (file: "soundtest.scd", controllers: [\rev, \jitter, \speed]),
+    (file: "other.scd", controllers: [\delay, \filter]),
+];
+// ... random selection logic
+)
+```
+
+**Test 7.4: Graceful stop**
+```supercollider
+// Stop routine without leaving corrupt state
+// - Complete current mutation before stopping
+// - Or rollback partial mutation
+// - Release document handles
+```
+
+**Milestone 7 Exit Criteria:**
+- [ ] Delayed mutations work correctly
+- [ ] Repeated async mutations don't accumulate errors
+- [ ] Random timing and target selection work
+- [ ] Clean shutdown leaves documents in valid state
+
+---
+
+### Milestone 8: Reactive/Watching Mode
+
+**Goal:** Process watches for user changes and responds - with feedback loop control.
+
+**Prerequisite:** M7 (async patterns)
+
+**Key Concepts:**
+- Detect when user modifies watched file
+- Respond to user changes (echo, transform, propagate)
+- Prevent infinite loops (change → react → change → react...)
+- Optional: controlled feedback loops for intentional effects
+
+**Test 8.1: Detect user edit**
+```supercollider
+(
+~lastSnapshot = Document.current.string;
+~watcher = fork {
+    inf.do {
+        var current = Document.current.string;
+        if(current != ~lastSnapshot, {
+            "Change detected!".postln;
+            ~lastSnapshot = current;
+        });
+        0.1.wait;  // Poll interval
+    };
+};
+)
+```
+
+**Test 8.2: Single response to change**
+```supercollider
+// User edits file A → system modifies file B
+(
+~onChange = {|changedFile|
+    if(changedFile == "soundtest.scd", {
+        ~crossFileModify.("response.scd", \echo, "USER_CHANGED");
+    });
+};
+)
+```
+
+**Test 8.3: Loop prevention**
+```supercollider
+// Strategy 1: Debounce - ignore changes within N ms of our own writes
+// Strategy 2: Generation counter - track "our" changes vs "user" changes
+// Strategy 3: Content hash - only react if change is different from what we'd write
+
+(
+~ourLastWrite = nil;
+~onChange = {|newContent|
+    if(newContent != ~ourLastWrite, {
+        // This is a user change, react to it
+        ~react.(newContent);
+    });
+};
+
+~react = {|content|
+    var response = ~transform.(content);
+    ~ourLastWrite = response;  // Remember what we're about to write
+    ~writeToDoc.(response);
+};
+)
+```
+
+**Test 8.4: Controlled feedback**
+```supercollider
+// Intentional N-iteration feedback then stop
+(
+~feedbackLoop = {|iterations|
+    var count = 0;
+    ~onChangeWithFeedback = {|content|
+        if(count < iterations, {
+            count = count + 1;
+            "Feedback iteration %/%".format(count, iterations).postln;
+            ~mutateAndTrigger.(content);
+        }, {
+            "Feedback complete, stopping".postln;
+        });
+    };
+};
+~feedbackLoop.(5);  // Allow 5 feedback iterations
+)
+```
+
+**Open Questions:**
+- What's the detection mechanism? (polling `doc.string` vs callbacks if available)
+- How to distinguish user changes from our changes?
+- Rate limiting strategy for rapid user edits
+- Can we hook into Document's change notifications (if any exist)?
+
+**Milestone 8 Exit Criteria:**
+- [ ] Can detect user edits reliably
+- [ ] Single response per user change works
+- [ ] Infinite loops are prevented
+- [ ] Controlled feedback loops work as designed
+- [ ] Performance is acceptable (polling overhead)
+
+---
+
 ## Fallback Strategies
 
 If a milestone fails, try these alternatives:
@@ -1104,12 +1336,17 @@ If a milestone fails, try these alternatives:
 ## Implementation Checklist
 
 - [ ] Milestone 0: API Probing (all 6 tests pass)
+- [ ] Milestone 0.5: Coordinate System Discovery
+- [ ] Milestone 0.9: Position Converter Utility
 - [ ] Milestone 1: Read-only inspection
+- [ ] Milestone 1.5: Cross-file document manipulation (double-indirection)
 - [ ] Milestone 2: Single replacement
 - [ ] Milestone 3: Position tracking
 - [ ] Milestone 4: Repeated operations
 - [ ] Milestone 5: Wildcard integration
 - [ ] Milestone 6: Error handling
+- [ ] Milestone 7: Async cross-file mutations
+- [ ] Milestone 8: Reactive/watching mode
 
 **Rule: Do not proceed to Milestone N+1 until Milestone N is complete and verified.**
 
