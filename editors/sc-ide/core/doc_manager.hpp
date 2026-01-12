@@ -118,6 +118,8 @@ public slots:
     void resetDefaultFont();
     void storeTmpFile();
     void onTmpCoalUsecs();
+    void onAutoSaveTimeout();
+    void onContentsChangedForAutoSave();
 
     void onModificationChanged(bool changed) {
         if (changed) {
@@ -132,6 +134,7 @@ signals:
 
 private:
     void setPlainText(bool flag);
+    void setupAutoSave();
 
     QByteArray mId;
     QTextDocument* mDoc;
@@ -140,6 +143,7 @@ private:
     QString mTmpFilePath;
     int mTmpCoalCount;
     QTimer mTmpCoalTimer;
+    QTimer mAutoSaveTimer;
     QDateTime mSaveTime;
     int mIndentWidth;
     SyntaxHighlighter* mHighlighter;

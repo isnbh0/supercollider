@@ -71,6 +71,10 @@ void Manager::initDefaults() {
     setDefault("showAutocompleteHelp", true);
     setDefault("autoReloadExternalChanges", false);
 
+    // Auto-save settings
+    setDefault("autoSave", false);
+    setDefault("autoSaveDelay", 1000);
+
     setDefault("blinkDuration", 600);
 
     // Issue #2389 - register a substitute so that macOS default won't be Helvetica.

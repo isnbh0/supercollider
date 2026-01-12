@@ -88,6 +88,8 @@ void EditorPage::load(Manager* s) {
     ui->disableBlinkingCursor->setChecked(s->value("disableBlinkingCursor").toBool());
     ui->insertMatchingTokens->setChecked(s->value("insertMatchingTokens").toBool());
     ui->autoReloadExternalChanges->setChecked(s->value("autoReloadExternalChanges").toBool());
+    ui->autoSaveCheckBox->setChecked(s->value("autoSave").toBool());
+    ui->autoSaveDelaySpinBox->setValue(s->value("autoSaveDelay").toInt());
     ui->blinkDuration->setValue(s->value("blinkDuration").toInt());
     ui->highlightCurrentLine->setChecked(s->value("highlightCurrentLine").toBool());
     ui->highlightBracketContents->setChecked(s->value("highlightBracketContents").toBool());
@@ -264,6 +266,8 @@ void EditorPage::store(Manager* s) {
     s->setValue("disableBlinkingCursor", ui->disableBlinkingCursor->isChecked());
     s->setValue("insertMatchingTokens", ui->insertMatchingTokens->isChecked());
     s->setValue("autoReloadExternalChanges", ui->autoReloadExternalChanges->isChecked());
+    s->setValue("autoSave", ui->autoSaveCheckBox->isChecked());
+    s->setValue("autoSaveDelay", ui->autoSaveDelaySpinBox->value());
     s->setValue("highlightCurrentLine", ui->highlightCurrentLine->isChecked());
     s->setValue("highlightBracketContents", ui->highlightBracketContents->isChecked());
     s->setValue("inactiveEditorFadeAlpha", ui->inactiveEditorFadeAlpha->value());

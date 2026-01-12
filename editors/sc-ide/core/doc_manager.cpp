@@ -217,6 +217,8 @@ Document::Document(bool isPlainText, const QByteArray& id, const QString& title,
     mTmpCoalTimer.setSingleShot(true);
     connect(&mTmpCoalTimer, &QTimer::timeout, this, &Document::onTmpCoalUsecs);
 
+    setupAutoSave();
+
     if (mId.isEmpty())
         mId = QUuid::createUuid().toString().toLatin1();
     if (mTitle.isEmpty())
@@ -249,6 +251,42 @@ void Document::applySettings(Settings::Manager* settings) {
 
     setDefaultFont(font);
     setIndentWidth(indentWidth);
+}
+
+void Document::setupAutoSave() {
+    mAutoSaveTimer.setSingleShot(true);
+    connect(&mAutoSaveTimer, &QTimer::timeout, this, &Document::onAutoSaveTimeout);
+}
+
+void Document::onContentsChangedForAutoSave() {
+    // Skip if no file path (untitled document)
+    if (mFilePath.isEmpty())
+        return;
+
+    // Skip if auto-save is disabled
+    Settings::Manager* settings = Main::settings();
+    if (!settings->value("IDE/editor/autoSave").toBool())
+        return;
+
+    // Reset (debounce) the timer with current delay setting
+    int delay = settings->value("IDE/editor/autoSaveDelay").toInt();
+    mAutoSaveTimer.start(delay);
+}
+
+void Document::onAutoSaveTimeout() {
+    // Double-check we still have a file path and auto-save is still enabled
+    if (mFilePath.isEmpty())
+        return;
+
+    if (!Main::settings()->value("IDE/editor/autoSave").toBool())
+        return;
+
+    // Only save if actually modified
+    if (!mDoc->isModified())
+        return;
+
+    // Request save through DocumentManager
+    Main::documentManager()->save(this);
 }
 
 void Document::deleteTrailingSpaces() {
@@ -439,6 +477,7 @@ void DocumentManager::create() {
     Document* doc = createDocument();
 
     connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::storeTmpFile);
+    connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::onContentsChangedForAutoSave);
     syncLangDocument(doc);
     Q_EMIT(opened(doc, 0, 0));
 }
@@ -501,6 +540,7 @@ Document* DocumentManager::open(const QString& path, int initialCursorPosition, 
     doc->mSaveTime = info.lastModified();
     doc->setInitialSelection(initialCursorPosition, selectionLength);
     connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::storeTmpFile);
+    connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::onContentsChangedForAutoSave);
 
     if (!isRTF)
         mFsWatcher.addPath(cpath);
@@ -596,6 +636,7 @@ void DocumentManager::restore() {
         syncLangDocument(doc);
         Q_EMIT(opened(doc, 0, 0));
         connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::storeTmpFile);
+        connect(doc->textDocument(), &QTextDocument::contentsChanged, doc, &Document::onContentsChangedForAutoSave);
     }
 }
 

@@ -194,6 +194,59 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="autoSaveGroupBox">
+          <property name="title">
+           <string>Auto-Save</string>
+          </property>
+          <layout class="QVBoxLayout" name="autoSaveLayout">
+           <item>
+            <widget class="QCheckBox" name="autoSaveCheckBox">
+             <property name="text">
+              <string>Automatically save files after delay</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="autoSaveDelayLayout">
+             <item>
+              <widget class="QLabel" name="autoSaveDelayLabel">
+               <property name="text">
+                <string>Delay:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="autoSaveDelaySpinBox">
+               <property name="suffix">
+                <string> ms</string>
+               </property>
+               <property name="minimum">
+                <number>100</number>
+               </property>
+               <property name="maximum">
+                <number>30000</number>
+               </property>
+               <property name="singleStep">
+                <number>100</number>
+               </property>
+               <property name="value">
+                <number>1000</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="autoSaveDelaySpacer">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
