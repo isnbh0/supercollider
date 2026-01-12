@@ -75,7 +75,81 @@ var m09Dir = m2Dir +/+ "../m09/";
             doc.selectedString, doc.selectedString.size
         ).postln;
 
+        // Store selection info before replacement
+        "[DEBUG] selectionStart: %, selectionSize: %".format(
+            doc.selectionStart, doc.selectionSize
+        ).postln;
+
+        // BEFORE replacement: capture byte-level state
+        {
+            var beforeContent = doc.string;
+            var beforeEmojiPos = beforeContent.find("~emoji.(");
+            var beforeMusicalPos = beforeContent.find("~musical.(");
+            "[DEBUG] BEFORE replace - doc.string.size: %".format(beforeContent.size).postln;
+            "[DEBUG] BEFORE - emoji line byte pos: %, musical line byte pos: %".format(
+                beforeEmojiPos, beforeMusicalPos
+            ).postln;
+            if (beforeEmojiPos.notNil and: { beforeMusicalPos.notNil }) {
+                "[DEBUG] BEFORE - gap between lines: % bytes".format(
+                    beforeMusicalPos - beforeEmojiPos
+                ).postln;
+            };
+        }.value;
+
         doc.selectedString_(newValue);
+
+        // Check IMMEDIATELY after replacement (no wait)
+        "[DEBUG] IMMEDIATE after replace - selectionStart: %, selectionSize: %".format(
+            doc.selectionStart, doc.selectionSize
+        ).postln;
+
+        // AFTER replacement: capture byte-level state
+        {
+            var afterContent = doc.string;
+            var afterEmojiPos = afterContent.find("~emoji.(");
+            var afterMusicalPos = afterContent.find("~musical.(");
+            "[DEBUG] AFTER replace - doc.string.size: %".format(afterContent.size).postln;
+            "[DEBUG] AFTER - emoji line byte pos: %, musical line byte pos: %".format(
+                afterEmojiPos, afterMusicalPos
+            ).postln;
+            if (afterEmojiPos.notNil and: { afterMusicalPos.notNil }) {
+                "[DEBUG] AFTER - gap between lines: % bytes".format(
+                    afterMusicalPos - afterEmojiPos
+                ).postln;
+            };
+            "[DEBUG] Size change: % bytes".format(afterContent.size - text.size).postln;
+        }.value;
+        // Find by pattern instead of using utf16 position (doc.string is bytes)
+        {
+            var immediateText = doc.string;
+            var immediatePos = immediateText.find("~" ++ controllerName ++ ".(");
+            if (immediatePos.notNil) {
+                "[DEBUG] IMMEDIATE doc.string shows: '%'".format(
+                    immediateText[immediatePos..((immediatePos + 30).min(immediateText.size - 1))]
+                ).postln;
+            } {
+                "[DEBUG] IMMEDIATE: pattern '~%' not found in doc.string!".format(controllerName).postln;
+            };
+        }.value;
+
+        // Force save and check document state
+        "[DEBUG] doc.isEdited: %".format(doc.isEdited).postln;
+        doc.save;
+        "[DEBUG] After save, doc.isEdited: %".format(doc.isEdited).postln;
+
+        // CRITICAL: Read disk IMMEDIATELY after save
+        0.1.wait;  // Small delay for filesystem
+        {
+            var postSaveContent = File.readAllString(~targetPath);
+            var postSavePos = postSaveContent.find("~" ++ controllerName ++ ".(");
+            if (postSavePos.notNil) {
+                "[DEBUG] IMMEDIATELY after save, DISK shows: '%'".format(
+                    postSaveContent[postSavePos..((postSavePos + 30).min(postSaveContent.size - 1))]
+                ).postln;
+            } {
+                "[DEBUG] IMMEDIATELY after save, pattern not on DISK!".postln;
+            };
+        }.value;
 
         // VERIFY: Re-read and check the result
         // Small delay to ensure document updates
@@ -87,8 +161,28 @@ var m09Dir = m2Dir +/+ "../m09/";
         patternPos = verifyText.find("~" ++ controllerName ++ ".(");
         if (patternPos.notNil) {
             snippet = verifyText[patternPos..((patternPos + 50).min(verifyText.size - 1))];
-            "[DEBUG] After replace, doc shows: '%'".format(snippet).postln;
+            "[DEBUG] After replace, doc.string shows: '%'".format(snippet).postln;
         };
+
+        // CRITICAL: Compare in-memory vs on-disk content
+        {
+            var diskContent = File.readAllString(~targetPath);
+            var diskPatternPos = diskContent.find("~" ++ controllerName ++ ".(");
+            var diskSnippet;
+            if (diskPatternPos.notNil) {
+                diskSnippet = diskContent[diskPatternPos..((diskPatternPos + 50).min(diskContent.size - 1))];
+                "[DEBUG] ON-DISK file shows: '%'".format(diskSnippet).postln;
+            } {
+                "[DEBUG] ON-DISK: pattern not found!".postln;
+            };
+            "[DEBUG] doc.string.size: %, disk.size: %".format(verifyText.size, diskContent.size).postln;
+            if (verifyText.size != diskContent.size) {
+                "[DEBUG] *** SIZE MISMATCH! In-memory vs disk differ by % bytes ***".format(
+                    (verifyText.size - diskContent.size).abs
+                ).postln;
+            };
+        }.value;
+
         "[DEBUG] Looking for: '%'".format(expectedPattern).postln;
 
         verified = verifyText.find(expectedPattern).notNil;
