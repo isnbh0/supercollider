@@ -242,3 +242,30 @@ Or declare all vars at function top:
 ```
 
 **Rule:** Vars go at the top. Always.
+
+---
+
+## Surrogate pairs in selection content: still investigating
+
+**Date:** 2026-01-12
+
+**Problem:**
+```supercollider
+// Original: ~emoji.(🎹🎹);
+// After replacement: ~emoji.(0.3    ← missing );
+```
+
+When the content being replaced contains non-BMP characters (emoji, musical symbols - 4-byte UTF-8 / surrogate pairs), the `);` gets eaten.
+
+**What works:**
+- Byte↔UTF-16 conversion functions (M0.9 tests pass)
+- Document manipulation with ASCII markers (M1.5 tests pass)
+- Replacing content that is ASCII or BMP unicode (arrows, CJK)
+
+**What fails:**
+- Replacing content that contains surrogate pairs (emoji 🎹, musical 𝄞)
+- The selection appears to include 2 extra UTF-16 units
+
+**Status:** Under investigation. Hypothesis: `selectRange` length calculation is off by the number of surrogate pairs in the content.
+
+**Workaround:** TBD - may need to adjust UTF-16 length calculation for surrogate pairs in selection.

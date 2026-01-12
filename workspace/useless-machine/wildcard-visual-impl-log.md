@@ -181,9 +181,9 @@ Where drift accumulates as:
 
 **Goal:** Verify that code loaded from one file can correctly find and modify text in other documents.
 
-**Status:** Not Started
+**Status:** Complete ✓
 
-**Test Files:**
+**Test Files:** `tests/m15/`
 - `test-source.scd` - The "orchestrator" that executes loaded code
 - `test-changer-logic.scd` - Contains the modification logic (loaded, not executed directly)
 - `test-utilities.scd` - Third file to verify cross-file targeting
@@ -192,16 +192,22 @@ Where drift accumulates as:
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 1.5a | Loaded code modifies test-source.scd | PENDING | Changer targets the file that invoked it |
-| 1.5b | Loaded code modifies itself (test-changer-logic.scd) | PENDING | Self-modification |
-| 1.5c | Loaded code modifies third file (test-utilities.scd) | PENDING | True cross-file operation |
-| 1.5d | Document handle persistence after switch | PENDING | Verify handles remain valid |
+| 1.5a | Loaded code modifies test-source.scd | PASS | Changer targets the file that invoked it |
+| 1.5b | Loaded code modifies itself (test-changer-logic.scd) | PASS | Self-modification |
+| 1.5c | Loaded code modifies third file (test-utilities.scd) | PASS | True cross-file operation |
+| 1.5d | Document handle persistence after switch | PASS | Verify handles remain valid |
+| 1.5e | Modify document WITHOUT stealing focus | PASS | `selectRange`/`selectedString_` work on background docs |
+| 1.5f | Use `Document.allDocuments` to avoid open() | PASS | Can get handles without focus steal |
 
-### Key Questions to Resolve
+### Key Findings
 
-- Does `Document.open(path)` return existing handle if file is already open?
-- Can we hold multiple Document handles simultaneously?
-- Does modifying a non-current document work without making it "current"?
+- **Yes:** `Document.open(path)` returns existing handle if file is already open
+- **Yes:** Can hold multiple Document handles simultaneously
+- **Yes:** Modifying a non-current document works without making it "current"
+- **Key:** Use `doc.front` to return focus after `Document.open`, then modify in background
+- **Key:** `Document.allDocuments` provides handles to open docs without stealing focus
+
+**Milestone 1.5 Complete** - Proceeding to Milestone 2.
 
 ---
 
@@ -318,8 +324,8 @@ Where drift accumulates as:
 2. ✓ M0.5: Coordinate System Discovery
 3. ✓ M0.9: Position Converter Utility
 4. ✓ M1: Read-Only Document Inspection
-5. → M1.5: Cross-File Document Manipulation (NEXT)
-6. M2: Single Text Replacement
+5. ✓ M1.5: Cross-File Document Manipulation
+6. → M2: Single Text Replacement (NEXT)
 7. M3: Position Tracking After Insertion
 8. M4: Repeated Operations
 9. M5: Integration with Wildcard
