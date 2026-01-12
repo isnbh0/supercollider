@@ -1,10 +1,21 @@
 // ============================================================
-// MILESTONE 0.9: BYTE ↔ UTF-16 POSITION CONVERTER
+// MILESTONE 0.9: BYTE ↔ UTF-16 POSITION CONVERTER (TEST FILE)
 // ============================================================
-// This utility converts between:
-//   - Byte positions (used by SC String indexing)
-//   - UTF-16 code unit positions (used by Document.selectRange)
+// This file contains tests for the converter functions.
+// The actual module is in: wildcard-visual-m09-module.scd
+//
+// To load functions from another file, use the module:
+//   (PathName(thisProcess.nowExecutingPath).pathOnly +/+ "wildcard-visual-m09-module.scd").load;
 // ============================================================
+
+// ============================================================
+// LOAD MODULE - Run this block first to load converter functions
+// ============================================================
+(
+var thisDir = PathName(thisProcess.nowExecutingPath).pathOnly;
+var modulePath = thisDir +/+ "wildcard-visual-m09-module.scd";
+modulePath.load;
+)
 
 // ============================================================
 // LIVE TEST MARKERS - DO NOT MODIFY THIS SECTION
@@ -23,76 +34,6 @@
 // Emoji: 🎹
 // [DDD_AFTER_EMOJI] <- baseline + 6
 // ============================================================
-
-// ==================== CONVERTER FUNCTIONS ====================
-
-(
-// Determine UTF-8 byte length from leading byte
-// Returns: 1, 2, 3, or 4
-~utf8ByteLength = {|leadingByte|
-    var code = leadingByte.ascii;
-    case
-        { code < 0 } { // Negative means high bit set (>127)
-            // Convert to unsigned: code + 256
-            var unsigned = code + 256;
-            case
-                { unsigned < 194 } { 1 }  // Invalid or continuation byte, treat as 1
-                { unsigned < 224 } { 2 }  // 110xxxxx = 2-byte
-                { unsigned < 240 } { 3 }  // 1110xxxx = 3-byte
-                { unsigned < 248 } { 4 }  // 11110xxx = 4-byte
-                { 1 };  // Invalid, treat as 1
-        }
-        { code < 128 } { 1 }  // ASCII
-        { 1 };  // Fallback
-};
-
-// Determine UTF-16 code unit count for a Unicode codepoint
-// Codepoints >= 0x10000 require surrogate pairs (2 units)
-// We infer this from UTF-8 byte length:
-//   - 4-byte UTF-8 = codepoint >= 0x10000 = 2 UTF-16 units
-//   - 1,2,3-byte UTF-8 = 1 UTF-16 unit
-~utf16UnitCount = {|utf8ByteLen|
-    if(utf8ByteLen == 4, { 2 }, { 1 });
-};
-
-// Convert byte position to UTF-16 position
-// Iterates through string, counting UTF-8 bytes and UTF-16 units
-~byteToUtf16 = {|text, bytePos|
-    var byteIdx = 0;
-    var utf16Idx = 0;
-    var textSize = text.size;
-
-    while { byteIdx < bytePos and: { byteIdx < textSize } } {
-        var byteLen = ~utf8ByteLength.(text[byteIdx]);
-        var utf16Len = ~utf16UnitCount.(byteLen);
-
-        byteIdx = byteIdx + byteLen;
-        utf16Idx = utf16Idx + utf16Len;
-    };
-
-    utf16Idx;
-};
-
-// Convert UTF-16 position to byte position
-// Iterates through string, counting UTF-16 units until target reached
-~utf16ToByte = {|text, utf16Pos|
-    var byteIdx = 0;
-    var utf16Idx = 0;
-    var textSize = text.size;
-
-    while { utf16Idx < utf16Pos and: { byteIdx < textSize } } {
-        var byteLen = ~utf8ByteLength.(text[byteIdx]);
-        var utf16Len = ~utf16UnitCount.(byteLen);
-
-        byteIdx = byteIdx + byteLen;
-        utf16Idx = utf16Idx + utf16Len;
-    };
-
-    byteIdx;
-};
-
-"Converter functions loaded.".postln;
-)
 
 // ==================== TEST 0.9a: ASCII-only ====================
 (

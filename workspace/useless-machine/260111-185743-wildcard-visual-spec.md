@@ -608,10 +608,11 @@ Use Python to generate test vectors covering:
 **Test File:** `wildcard-visual-m09-converter.scd`
 
 **Milestone 0.9 Exit Criteria:**
-- [ ] All Python-generated test vectors pass
-- [ ] Round-trip conversion is identity
-- [ ] No off-by-one errors at character boundaries
-- [ ] Handles all 4 UTF-8 byte lengths correctly
+- [x] All Python-generated test vectors pass (126/126)
+- [x] Round-trip conversion is identity
+- [x] No off-by-one errors at character boundaries
+- [x] Handles all 4 UTF-8 byte lengths correctly
+- [x] LIVE verification against Document.selectRange passes
 
 ---
 
@@ -619,97 +620,52 @@ Use Python to generate test vectors covering:
 
 **Goal:** Build tooling to find and parse the control panel WITHOUT modifying anything.
 
-**Test 1.1: Find a known string pattern**
-```supercollider
-(
-var doc = Document.current;
-var text = doc.string;
-var pattern = "~rev.(";
-var pos = text.find(pattern);
+**Prerequisite:** Load converter functions from M0.9 (`wildcard-visual-m09-converter.scd`)
 
-if(pos.isNil, {
-    "FAIL: Could not find '%' in document".format(pattern).postln;
-}, {
-    "PASS: Found '%' at position %".format(pattern, pos).postln;
-    "  context: '%'".format(text[pos..pos+30]).postln;
-});
-)
-```
+**Test File:** `wildcard-visual-m1-inspection.scd`
+
+**Test 1.1: Find a known string pattern**
+
+Find `~rev.(` or similar controller pattern in the document. Returns byte position.
 
 **Test 1.2: Find the dot string within a controller**
-```supercollider
-(
-var doc = Document.current;
-var text = doc.string;
-var controllerStart = text.find("~rev.(");
-var searchRegion, quoteStart, quoteEnd, dots;
 
-if(controllerStart.isNil, { "FAIL: controller not found".postln; ^nil });
-
-// Look for the quoted string after the controller
-searchRegion = text[controllerStart..controllerStart+100];
-quoteStart = searchRegion.find("\"");
-quoteEnd = searchRegion.find("\"", quoteStart + 1);
-
-if(quoteStart.isNil or: quoteEnd.isNil, {
-    "FAIL: Could not find quoted string".postln;
-    "  searchRegion: '%'".format(searchRegion).postln;
-}, {
-    dots = searchRegion[quoteStart+1..quoteEnd-1];
-    "PASS: Found dots = '%' (% chars)".format(dots, dots.size).postln;
-    "  absolute positions: % to %".format(
-        controllerStart + quoteStart + 1,
-        controllerStart + quoteEnd
-    ).postln;
-});
-)
-```
+Given a controller pattern, locate the quoted dot string (e.g., `"......."`) and extract:
+- Byte position of first dot
+- Byte position of closing quote
+- The dot string itself
 
 **Test 1.3: Parse all controllers into registry**
+
+Build a registry mapping controller names to their positions:
+
 ```supercollider
-(
-var doc = Document.current;
-var text = doc.string;
-var controllers = [\rev, \speed, \jitter, \silence, \fade];
-var registry = IdentityDictionary.new;
-
-controllers.do {|name|
-    var pattern = "~" ++ name ++ ".(";
-    var pos = text.find(pattern);
-    var searchRegion, q1, q2, dots, absStart, absEnd;
-
-    if(pos.notNil, {
-        searchRegion = text[pos..pos+100];
-        q1 = searchRegion.find("\"");
-        q2 = searchRegion.find("\"", q1 + 1);
-
-        if(q1.notNil and: q2.notNil, {
-            absStart = pos + q1 + 1;
-            absEnd = pos + q2;
-            dots = text[absStart..absEnd-1];
-            registry[name] = (
-                pattern: pattern,
-                dotStart: absStart,
-                dotEnd: absEnd,
-                currentDots: dots,
-            );
-            "  %: found at %, dots='%'".format(name, absStart, dots).postln;
-        }, {
-            "  %: WARN - found pattern but no quotes".format(name).postln;
-        });
-    }, {
-        "  %: not found".format(name).postln;
-    });
-};
-
-"Registry built with % entries".format(registry.size).postln;
-~testRegistry = registry;  // save for next test
-)
+~m1Registry[\rev] = (
+    pattern: "~rev.(",
+    byteStart: 1234,      // byte position of first dot
+    byteEnd: 1244,        // byte position of closing quote
+    currentDots: ".........",
+    dotCount: 9,
+);
 ```
+
+**Test 1.4: Verify positions with selectRange**
+
+Critical test using M0.9 converter functions:
+
+```supercollider
+// For each controller in registry:
+utf16Start = ~byteToUtf16.(text, info.byteStart);
+doc.selectRange(utf16Start, info.dotCount);
+selected = doc.selectedString;
+// Verify: selected == info.currentDots
+```
+
+This proves that byte positions can be correctly converted to UTF-16 positions for `selectRange`.
 
 **Milestone 1 Exit Criteria:**
 - [ ] Can find all target controllers
-- [ ] Position values are accurate (verify by selecting with selectRange)
+- [ ] Position values are accurate (verified by selectRange with converter)
 - [ ] No document modifications occurred
 
 ---
@@ -718,22 +674,27 @@ controllers.do {|name|
 
 **Goal:** Successfully replace ONE dot string, ONE time.
 
+**Prerequisite:** M0.9 converter functions + M1 registry
+
 **Test 2.1: Replace dots at known position**
 ```supercollider
-// Uses registry from Test 1.3
+// Uses registry from M1 + converter from M0.9
 // WARNING: Modifies document!
 (
 var doc = Document.current;
-var info = ~testRegistry[\rev];
+var text = doc.string;
+var info = ~m1Registry[\rev];
 var newDots = "..........";  // 10 dots
-var len;
+var utf16Start, len;
 
 if(info.isNil, { "FAIL: No registry for \\rev".postln; ^nil });
 
-len = info.dotEnd - info.dotStart;
-"Replacing % chars at position % with '%'".format(len, info.dotStart, newDots).postln;
+len = info.dotCount;
+utf16Start = ~byteToUtf16.(text, info.byteStart);  // Convert!
 
-doc.selectRange(info.dotStart, len);
+"Replacing % chars at UTF-16 pos % with '%'".format(len, utf16Start, newDots).postln;
+
+doc.selectRange(utf16Start, len);
 "Selected: '%'".format(doc.selectedString).postln;
 
 doc.selectedString_(newDots);
@@ -745,7 +706,6 @@ doc.selectedString_(newDots);
 **Test 2.2: Replace AND execute**
 ```supercollider
 (
-var doc = Document.current;
 var newDots = ".....";
 var code = "( ~rev.(\"" ++ newDots ++ "\"))";
 
@@ -759,15 +719,16 @@ code.interpret;
 ```supercollider
 (
 var doc = Document.current;
-var info = ~testRegistry[\rev];
+var text = doc.string;
+var info = ~m1Registry[\rev];
 var newDots = "...";
-var code, len;
+var code, utf16Start;
 
 if(info.isNil, { ^nil });
 
-// Visual update
-len = info.dotEnd - info.dotStart;
-doc.selectRange(info.dotStart, len);
+// Visual update (with conversion)
+utf16Start = ~byteToUtf16.(text, info.byteStart);
+doc.selectRange(utf16Start, info.dotCount);
 doc.selectedString_(newDots);
 
 // Execute
@@ -779,7 +740,7 @@ code.interpret;
 ```
 
 **Milestone 2 Exit Criteria:**
-- [ ] Single replacement works
+- [ ] Single replacement works (with byte→UTF-16 conversion)
 - [ ] Execute works
 - [ ] Combined works
 - [ ] Undo (Cmd+Z) works after modification
@@ -790,26 +751,33 @@ code.interpret;
 
 **Goal:** Handle the hard problem - positions shift when text is inserted.
 
+**Prerequisite:** M0.9 converter functions + M1 registry
+
+**Key insight:** After any text modification:
+1. Byte positions of all subsequent content shift
+2. UTF-16 positions also shift
+3. Must re-fetch `doc.string` and rescan before next operation
+
 **Test 3.1: Verify position shift problem**
 ```supercollider
 (
 var doc = Document.current;
 var text1, text2, pos1, pos2;
 
-// Find position of ~jitter
+// Find position of ~jitter (byte position)
 text1 = doc.string;
 pos1 = text1.find("~jitter.(");
-"Before insertion: ~jitter at %".format(pos1).postln;
+"Before insertion: ~jitter at byte %".format(pos1).postln;
 
-// Insert 20 characters at position 100
-doc.selectRange(100, 0);
+// Insert 20 characters at UTF-16 position 100
+doc.selectRange(100, 0);  // Note: 100 is small, likely no drift yet
 doc.selectedString_("/* INSERTED TEXT */");
 
 // Find position again
 text2 = doc.string;
 pos2 = text2.find("~jitter.(");
-"After insertion: ~jitter at %".format(pos2).postln;
-"Shift: % characters".format(pos2 - pos1).postln;
+"After insertion: ~jitter at byte %".format(pos2).postln;
+"Byte shift: %".format(pos2 - pos1).postln;
 )
 // Cmd+Z to undo
 ```
@@ -817,29 +785,30 @@ Expected: Position increases by ~19 characters.
 
 **Test 3.2: Rescan after modification**
 ```supercollider
-// Strategy: rescan ALL positions after ANY modification
+// Strategy: rescan ALL byte positions after ANY modification
 (
 ~visualRescanAll = {
     var doc = Document.current;
     var text = doc.string;
 
-    ~testRegistry.keysValuesDo {|name, info|
+    ~m1Registry.keysValuesDo {|name, info|
         var pos = text.find(info.pattern);
         var q1, q2, region;
 
         if(pos.notNil, {
-            region = text[pos..pos+100];
+            region = text[pos..(pos+150).min(text.size-1)];
             q1 = region.find("\"");
-            q2 = region.find("\"", q1 + 1);
+            if(q1.notNil, { q2 = region.find("\"", false, q1 + 1) });
 
             if(q1.notNil and: q2.notNil, {
-                info.dotStart = pos + q1 + 1;
-                info.dotEnd = pos + q2;
-                info.currentDots = text[info.dotStart..info.dotEnd-1];
+                info.byteStart = pos + q1 + 1;
+                info.byteEnd = pos + q2;
+                info.currentDots = text[info.byteStart..info.byteEnd-1];
+                info.dotCount = info.currentDots.size;
             });
         });
     };
-    "Rescanned % controllers".format(~testRegistry.size).postln;
+    "Rescanned % controllers".format(~m1Registry.size).postln;
 };
 
 ~visualRescanAll.();
@@ -850,30 +819,33 @@ Expected: Position increases by ~19 characters.
 ```supercollider
 (
 var doc = Document.current;
-var info = ~testRegistry[\rev];
+var text = doc.string;
+var info = ~m1Registry[\rev];
 var breadcrumb = "// ▓▓▓ WILDCARD TEST ▓▓▓\n";
 var newDots = "........";
-var lineStart, len;
+var lineStart, utf16Start;
 
 if(info.isNil, { ^nil });
 
-// Find line start (search backwards for newline)
-lineStart = doc.string[0..info.dotStart].findBackwards("\n");
+// Find line start (search backwards for newline) - byte position
+lineStart = text[0..info.byteStart].findBackwards("\n");
 lineStart = if(lineStart.isNil, { 0 }, { lineStart + 1 });
 
-"Inserting breadcrumb at line start %".format(lineStart).postln;
+"Inserting breadcrumb at byte pos %".format(lineStart).postln;
 
-// Insert breadcrumb
-doc.selectRange(lineStart, 0);
+// Insert breadcrumb (convert byte→UTF-16 for selectRange)
+utf16Start = ~byteToUtf16.(text, lineStart);
+doc.selectRange(utf16Start, 0);
 doc.selectedString_(breadcrumb);
 
-// CRITICAL: Rescan positions
+// CRITICAL: Rescan positions (text changed!)
 ~visualRescanAll.();
 
-// Now update the dots
-info = ~testRegistry[\rev];  // get updated positions
-len = info.dotEnd - info.dotStart;
-doc.selectRange(info.dotStart, len);
+// Now update the dots with fresh positions
+text = doc.string;  // Re-fetch!
+info = ~m1Registry[\rev];
+utf16Start = ~byteToUtf16.(text, info.byteStart);
+doc.selectRange(utf16Start, info.dotCount);
 doc.selectedString_(newDots);
 
 "Complete. Check document!".postln;
@@ -883,7 +855,8 @@ doc.selectedString_(newDots);
 
 **Milestone 3 Exit Criteria:**
 - [ ] Understand position shift behavior
-- [ ] Rescan function works reliably
+- [ ] Rescan function works reliably (updates byte positions)
+- [ ] Converter used correctly with fresh text after each modification
 - [ ] Breadcrumb + update works in sequence
 
 ---

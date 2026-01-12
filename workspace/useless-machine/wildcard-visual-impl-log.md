@@ -109,38 +109,42 @@ Where drift accumulates as:
 
 **Goal:** Implement and exhaustively test byte↔UTF-16 position conversion functions.
 
-**Status:** In Progress
+**Status:** Complete ✓
 
 **Test File:** `wildcard-visual-m09-converter.scd`
 
 ### Requirements
 
-1. `byteToUtf16(text, bytePos)` - Convert byte position to UTF-16 position
-2. `utf16ToByte(text, utf16Pos)` - Convert UTF-16 position to byte position
-3. Must handle all Unicode planes correctly
-4. Must be 100% accurate - this is foundational
+1. `byteToUtf16(text, bytePos)` - Convert byte position to UTF-16 position ✓
+2. `utf16ToByte(text, utf16Pos)` - Convert UTF-16 position to byte position ✓
+3. Must handle all Unicode planes correctly ✓
+4. Must be 100% accurate - this is foundational ✓
 
-### Test Strategy
+### Implementation
 
-Use Python to generate edge case test vectors:
-- ASCII-only strings
-- Mixed ASCII + 2-byte UTF-8 (Latin, Greek, Cyrillic)
-- Mixed ASCII + 3-byte UTF-8 (CJK, arrows, symbols)
-- Strings with 4-byte UTF-8 (emoji, surrogate pairs)
-- Boundary conditions (start, end, mid-character)
-- Large position values
+```supercollider
+~utf8ByteLength = {|leadingByte| ... };  // Detect 1/2/3/4 byte sequences
+~utf16UnitCount = {|utf8ByteLen| ... };  // 4-byte UTF-8 = 2 UTF-16 units
+~byteToUtf16 = {|text, bytePos| ... };   // For use with selectRange
+~utf16ToByte = {|text, utf16Pos| ... };  // For string indexing
+```
 
 ### Test Results
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 0.9a | ASCII-only conversion | PENDING | |
-| 0.9b | 2-byte UTF-8 chars | PENDING | |
-| 0.9c | 3-byte UTF-8 chars | PENDING | |
-| 0.9d | 4-byte UTF-8 (emoji) | PENDING | |
-| 0.9e | Mixed content | PENDING | |
-| 0.9f | Round-trip accuracy | PENDING | |
-| 0.9g | Edge cases from Python | PENDING | |
+| 0.9a | ASCII-only conversion | PASS | |
+| 0.9b | 2-byte UTF-8 chars | PASS | Latin, Greek, Cyrillic |
+| 0.9c | 3-byte UTF-8 chars | PASS | Korean, Japanese, arrows |
+| 0.9d | 4-byte UTF-8 (emoji) | PASS | Surrogate pairs handled |
+| 0.9e | Mixed content | PASS | |
+| 0.9f | Round-trip accuracy | PASS | 15 positions verified |
+| 0.9g | Python vectors | PASS | 126/126 tests |
+| 0.9h | Reverse direction | PASS | 22/22 tests |
+| LIVE | Document.selectRange | PASS | 4 markers verified |
+| LIVE-R | utf16ToByte accuracy | PASS | 5 positions verified |
+
+**Milestone 0.9 Complete** - Proceeding to Milestone 1.
 
 ---
 
@@ -150,6 +154,10 @@ Use Python to generate edge case test vectors:
 
 **Status:** In Progress
 
+**Test File:** `wildcard-visual-m1-inspection.scd`
+
+**Prerequisite:** Load converter functions from `wildcard-visual-m09-converter.scd` first!
+
 ### Test Results
 
 | Test | Description | Status | Notes |
@@ -157,7 +165,7 @@ Use Python to generate edge case test vectors:
 | 1.1 | Find known string pattern | PENDING | |
 | 1.2 | Find dot string within controller | PENDING | |
 | 1.3 | Parse all controllers into registry | PENDING | |
-| 1.4 | Verify positions with selectRange | PENDING | |
+| 1.4 | Verify positions with selectRange | PENDING | Uses byte→UTF-16 converter |
 
 ---
 
@@ -165,11 +173,19 @@ Use Python to generate edge case test vectors:
 
 **Status:** Not Started
 
+**Prerequisite:** M0.9 converter + M1 registry
+
+**Key change from original spec:** All `selectRange` calls must use `~byteToUtf16` conversion.
+
 ---
 
 ## Milestone 3: Position Tracking After Insertion
 
 **Status:** Not Started
+
+**Prerequisite:** M0.9 converter + M1 registry
+
+**Key insight:** After text modification, must re-fetch `doc.string` and rescan byte positions before next operation.
 
 ---
 
@@ -193,14 +209,20 @@ Use Python to generate edge case test vectors:
 
 ## Decisions & Notes
 
--
+- M0.5 discovery: `String` uses byte indexing, `Document.selectRange` uses UTF-16 code units
+- M0.9 solution: `~byteToUtf16` and `~utf16ToByte` converter functions
+- All milestones M1+ must use converter for accurate position handling
 
 ## Issues Encountered
 
--
+- Test false positives when `text.find()` matches duplicate strings earlier in file
+- Solution: search from expected position or compare text at position directly
 
 ## Next Steps
 
-1. Run Milestone 0 tests in SuperCollider IDE
-2. Record all results in this log
-3. Proceed to Milestone 1 only after all M0 tests pass
+1. ✓ M0: API Capability Probing
+2. ✓ M0.5: Coordinate System Discovery
+3. ✓ M0.9: Position Converter Utility
+4. → M1: Read-Only Document Inspection (IN PROGRESS)
+5. M2: Single Text Replacement
+6. M3: Position Tracking After Insertion
