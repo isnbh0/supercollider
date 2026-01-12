@@ -1,3 +1,7 @@
+.local
+.specstory
+.cursorindexingignore
+
 # mac related files
 .DS_Store
 platform/mac/Intermediate Build Files
