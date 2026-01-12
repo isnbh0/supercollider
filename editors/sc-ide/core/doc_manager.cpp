@@ -184,7 +184,7 @@ void Document::setTextInRange(const QString text, int start, int range) {
     if (range == -1) {
         cursor.movePosition(QTextCursor::End, QTextCursor::KeepAnchor, 1);
     } else {
-        cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, range);
+        cursor.setPosition(start + range, QTextCursor::KeepAnchor);
     }
     cursor.insertText(text);
 }
