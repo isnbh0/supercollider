@@ -31,12 +31,170 @@
 #include <QDir>
 #include <QFile>
 #include <QMessageBox>
+#include <QScrollBar>
 #include <QTextBlock>
 #include <QApplication>
 
 #include <yaml-cpp/yaml.h>
 
 using namespace ScIDE;
+
+namespace {
+
+struct LineCol {
+    int line;   // 0-indexed
+    int column; // 0-indexed
+};
+
+// Convert absolute position to line/column
+LineCol positionToLineCol(const QString& content, int position) {
+    int line = 0;
+    int lineStart = 0;
+
+    for (int i = 0; i < position && i < content.length(); ++i) {
+        if (content[i] == '\n') {
+            ++line;
+            lineStart = i + 1;
+        }
+    }
+
+    return { line, position - lineStart };
+}
+
+// Convert line/column to absolute position
+int lineColToPosition(const QString& content, int line, int column) {
+    int currentLine = 0;
+    int pos = 0;
+
+    while (pos < content.length() && currentLine < line) {
+        if (content[pos] == '\n') {
+            ++currentLine;
+        }
+        ++pos;
+    }
+
+    // Now at start of target line, add column (clamped to line length)
+    int lineEnd = content.indexOf('\n', pos);
+    if (lineEnd == -1) {
+        lineEnd = content.length();
+    }
+    int lineLength = lineEnd - pos;
+
+    return pos + qMin(column, lineLength);
+}
+
+// Simple line-based diff: returns mapping from old line numbers to new line numbers
+// Uses longest common subsequence approach on lines
+QVector<int> computeLineMapping(const QStringList& oldLines, const QStringList& newLines) {
+    int oldCount = oldLines.size();
+    int newCount = newLines.size();
+
+    // Build LCS table
+    QVector<QVector<int>> lcs(oldCount + 1, QVector<int>(newCount + 1, 0));
+    for (int i = 1; i <= oldCount; ++i) {
+        for (int j = 1; j <= newCount; ++j) {
+            if (oldLines[i - 1] == newLines[j - 1]) {
+                lcs[i][j] = lcs[i - 1][j - 1] + 1;
+            } else {
+                lcs[i][j] = qMax(lcs[i - 1][j], lcs[i][j - 1]);
+            }
+        }
+    }
+
+    // Backtrack to find mapping: oldLine -> newLine (-1 if deleted)
+    QVector<int> mapping(oldCount, -1);
+    int i = oldCount, j = newCount;
+    while (i > 0 && j > 0) {
+        if (oldLines[i - 1] == newLines[j - 1]) {
+            mapping[i - 1] = j - 1;
+            --i;
+            --j;
+        } else if (lcs[i - 1][j] >= lcs[i][j - 1]) {
+            --i; // Line was deleted
+        } else {
+            --j; // Line was inserted
+        }
+    }
+
+    return mapping;
+}
+
+// Map cursor position from old content to new content
+int mapCursorPosition(const QString& oldContent, const QString& newContent, int oldPosition) {
+    // Edge case: empty new content
+    if (newContent.isEmpty()) {
+        return 0;
+    }
+
+    // Edge case: position beyond old content
+    if (oldPosition >= oldContent.length()) {
+        oldPosition = qMax(0, oldContent.length() - 1);
+    }
+
+    // Convert to line/column
+    LineCol oldLC = positionToLineCol(oldContent, oldPosition);
+
+    // Split into lines
+    QStringList oldLines = oldContent.split('\n');
+    QStringList newLines = newContent.split('\n');
+
+    // Compute line mapping
+    QVector<int> lineMapping = computeLineMapping(oldLines, newLines);
+
+    int newLine;
+    if (oldLC.line < lineMapping.size() && lineMapping[oldLC.line] >= 0) {
+        // Line survived (exact match): use mapped line
+        newLine = lineMapping[oldLC.line];
+    } else {
+        // Line wasn't matched by LCS. Two possibilities:
+        // 1. In-place reformat: line content changed but surrounding lines are stable
+        // 2. Deletion: line was removed, other lines shifted
+
+        // Detect in-place reformat: check if neighboring lines map to same positions
+        // Only consider it a reformat if ALL matched neighbors stayed in place
+        bool looksLikeReformat = false;
+        if (oldLC.line < newLines.size()) {
+            bool hasPrevNeighbor =
+                (oldLC.line > 0 && oldLC.line - 1 < lineMapping.size() && lineMapping[oldLC.line - 1] >= 0);
+            bool hasNextNeighbor = (oldLC.line + 1 < lineMapping.size() && lineMapping[oldLC.line + 1] >= 0);
+
+            // A neighbor is "stable" if it doesn't exist OR it maps to the same position
+            bool prevStable = !hasPrevNeighbor || (lineMapping[oldLC.line - 1] == oldLC.line - 1);
+            bool nextStable = !hasNextNeighbor || (lineMapping[oldLC.line + 1] == oldLC.line + 1);
+
+            // Reformat only if we have at least one neighbor AND all neighbors are stable
+            looksLikeReformat = (hasPrevNeighbor || hasNextNeighbor) && prevStable && nextStable;
+        }
+
+        if (looksLikeReformat) {
+            // In-place reformat: stay on same line number
+            newLine = oldLC.line;
+        } else {
+            // Line was deleted: find nearest surviving line
+            // Search backward first, then forward
+            newLine = -1;
+            for (int delta = 1; delta < qMax(oldLC.line + 1, oldLines.size() - oldLC.line); ++delta) {
+                if (oldLC.line - delta >= 0 && lineMapping[oldLC.line - delta] >= 0) {
+                    newLine = lineMapping[oldLC.line - delta];
+                    break;
+                }
+                if (oldLC.line + delta < lineMapping.size() && lineMapping[oldLC.line + delta] >= 0) {
+                    newLine = lineMapping[oldLC.line + delta];
+                    break;
+                }
+            }
+            // If still not found, default to last line
+            if (newLine < 0) {
+                newLine = newLines.size() - 1;
+            }
+        }
+    }
+
+    // Convert back to position, clamping column to new line length
+    return lineColToPosition(newContent, newLine, oldLC.column);
+}
+
+} // anonymous namespace
 
 Document::Document(bool isPlainText, const QByteArray& id, const QString& title, const QString& text):
     mId(id),
@@ -374,8 +532,35 @@ bool DocumentManager::reload(Document* doc) {
     QByteArray bytes(file.readAll());
     file.close();
 
-    doc->mDoc->setPlainText(decodeDocument(bytes));
+    QString newContent = decodeDocument(bytes);
+
+    // Save cursor and scroll state from active editor
+    GenericCodeEditor* editor = doc->lastActiveEditor();
+    int oldCursorPosition = -1;
+    int scrollPosition = -1;
+    QString oldContent;
+
+    if (editor) {
+        oldCursorPosition = editor->textCursor().position();
+        scrollPosition = editor->verticalScrollBar()->value();
+        oldContent = doc->mDoc->toPlainText();
+    }
+
+    doc->mDoc->setPlainText(newContent);
     doc->mDoc->setModified(false);
+
+    // Restore cursor position using diff-based mapping
+    if (editor && oldCursorPosition >= 0) {
+        int newCursorPosition = mapCursorPosition(oldContent, newContent, oldCursorPosition);
+
+        QTextCursor cursor(doc->mDoc);
+        cursor.setPosition(newCursorPosition);
+        editor->setTextCursor(cursor);
+
+        if (scrollPosition >= 0) {
+            editor->verticalScrollBar()->setValue(scrollPosition);
+        }
+    }
 
     QFileInfo info(doc->mFilePath);
     doc->mSaveTime = info.lastModified();
@@ -542,9 +727,15 @@ void DocumentManager::onFileChanged(const QString& path) {
         if (doc->mFilePath == path) {
             QFileInfo info(doc->mFilePath);
             if (doc->mSaveTime < info.lastModified()) {
-                doc->mDoc->setModified(true);
-                doc->mSaveTime = info.lastModified();
-                emit changedExternally(doc);
+                // Check if auto-reload is enabled
+                bool autoReload = Main::settings()->value("IDE/editor/autoReloadExternalChanges").toBool();
+                if (autoReload) {
+                    reload(doc);
+                } else {
+                    doc->mDoc->setModified(true);
+                    doc->mSaveTime = info.lastModified();
+                    emit changedExternally(doc);
+                }
             }
         }
     }

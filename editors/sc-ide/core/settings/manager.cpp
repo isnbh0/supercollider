@@ -69,6 +69,7 @@ void Manager::initDefaults() {
     setDefault("insertMatchingTokens", false);
     setDefault("showLinenumber", true);
     setDefault("showAutocompleteHelp", true);
+    setDefault("autoReloadExternalChanges", false);
 
     setDefault("blinkDuration", 600);
 

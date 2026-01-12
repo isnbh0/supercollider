@@ -175,6 +175,25 @@
          </widget>
         </item>
         <item>
+         <widget class="QGroupBox" name="groupBox_6">
+          <property name="title">
+           <string>External Files</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_external">
+           <item>
+            <widget class="QCheckBox" name="autoReloadExternalChanges">
+             <property name="toolTip">
+              <string>Automatically reload files when they are modified by external programs</string>
+             </property>
+             <property name="text">
+              <string>Reload files modified externally without confirmation</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
