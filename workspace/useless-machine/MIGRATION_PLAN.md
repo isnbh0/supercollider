@@ -258,7 +258,7 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 17 | e7baeed | Add M1 inspection + TIL | DONE |
 | 18 | 2576d09 | Move tests to tests/ | DONE |
 | 19 | 5363df0 | Add M15 test utilities | DONE |
-| 20 | b0305c8 | Add M2 test framework | |
+| 20 | b0305c8 | Add M2 test framework | DONE |
 | 21 | 85912d7 | Add surrogate pairs bug report | |
 | 22 | ad8c43c | Add selectRange length test | |
 | 23 | 6f1a545 | Add selectRange experiment | |

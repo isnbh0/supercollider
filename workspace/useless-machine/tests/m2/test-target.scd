@@ -22,11 +22,11 @@
 ....);
 
 // === UNICODE (BMP - 3 byte UTF-8, 1 UTF-16) ===
-~arrows.(→→→→);
-~korean.(한글한글);
+~arrows.(0.1);
+~korean.(0.2);
 
 // === UNICODE (NON-BMP - 4 byte UTF-8, 2 UTF-16 surrogate pairs) ===
-~emoji.(🎹🎹);
+~emoji.(0.3
 ~musical.(𝄞𝄞𝄞);
 
 // === AFTER UNICODE (drift test) ===

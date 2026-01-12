@@ -1,0 +1,80 @@
+# Bug Report: Surrogate Pair Replacement Eats Closing `);`
+
+## Summary
+
+When replacing content that contains non-BMP Unicode characters (emoji, musical symbols), the replacement eats the closing `);` of the controller pattern.
+
+## Reproduction
+
+1. Clean file has: `~emoji.(🎹🎹);`
+2. Run replacement to change content to `0.3`
+3. Result: `~emoji.(0.3` ← missing `);`
+
+## Affected Cases
+
+- Emoji: 🎹 (U+1F3B9) - 4-byte UTF-8, 2 UTF-16 code units (surrogate pair)
+- Musical symbols: 𝄞 (U+1D11E) - 4-byte UTF-8, 2 UTF-16 code units
+- Any non-BMP character (codepoint > U+FFFF)
+
+## Working Cases
+
+- ASCII content
+- BMP Unicode (arrows →, CJK 한글) - 3-byte UTF-8, 1 UTF-16 code unit
+
+## Key Files
+
+- `tests/m2/test-runner.scd` - Test harness with `~replaceController` helper
+- `tests/m2/test-target.scd` - Test file with controller patterns
+- `tests/m09/wildcard-visual-m09-module.scd` - UTF-8 ↔ UTF-16 converter functions
+
+## Relevant Code
+
+The replacement logic in `~replaceController`:
+
+```supercollider
+// Find content bounds (byte positions)
+contentStart = patternPos + pattern.size;
+contentEnd = /* paren depth counter finds ) */;
+
+// Convert to UTF-16 for Document API
+utf16Start = ~byteToUtf16.(text, contentStart);
+utf16Len = ~byteToUtf16.(text, contentEnd) - utf16Start;
+
+// Replace
+doc.selectRange(utf16Start, utf16Len);
+doc.selectedString_(newValue);
+```
+
+## Debug Output (from failing test)
+
+```
+[REPLACE] emoji: bytes 703..711 (len 8)      ← byte positions CORRECT
+[REPLACE] emoji: utf16 703..+4               ← utf16 length looks correct (2 emoji × 2 units)
+[DEBUG] After replace, doc shows: '~emoji.(0.3'  ← BUT result is corrupted!
+[DEBUG] Looking for: '~emoji.(0.3);'
+[DEBUG] find() returned: nil
+[REPLACE] emoji VERIFICATION FAILED!
+```
+
+## Hypothesis
+
+The byte→UTF-16 position conversion is correct in isolation (M0.9 tests pass), but something goes wrong when `selectRange` uses these positions. Possible issues:
+
+1. Off-by-one in UTF-16 length calculation for surrogate pairs
+2. `selectRange` interprets the length differently than expected
+3. Accumulated drift calculation error when surrogate pairs are in the content being replaced
+
+## Converter Functions (for reference)
+
+```supercollider
+~utf8ByteLength = {|leadingByte| /* returns 1/2/3/4 based on UTF-8 lead byte */ };
+~utf16UnitCount = {|utf8ByteLen| if(utf8ByteLen == 4, { 2 }, { 1 }) };
+~byteToUtf16 = {|text, bytePos| /* walks text, converts byte pos to UTF-16 pos */ };
+```
+
+## Next Steps
+
+1. Add more debug output to see exact UTF-16 positions being used
+2. Test with single emoji vs double emoji to see if error scales
+3. Check if `selectRange` length parameter is count or end-position
+4. Verify the M0.9 converter handles surrogate pairs correctly in this context
