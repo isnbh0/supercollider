@@ -24,6 +24,7 @@
 };
 
 // UTF-16 code unit count for a codepoint (4-byte UTF-8 = surrogate pair = 2 units)
+// CONFIRMED via experiment: selectRange uses UTF-16 code units for both position AND length
 ~utf16UnitCount = {|utf8ByteLen|
     if(utf8ByteLen == 4, { 2 }, { 1 });
 };

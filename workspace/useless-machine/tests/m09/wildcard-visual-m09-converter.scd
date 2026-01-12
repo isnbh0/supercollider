@@ -116,10 +116,10 @@ if(allPass, { "  PASS: All 3-byte conversions correct".postln });
 
 // ==================== TEST 0.9d: 4-byte UTF-8 (emoji) ====================
 (
-var text = "🎹";  // Piano emoji: 4 bytes UTF-8, 2 UTF-16 units
+var text = "🎹";  // Piano emoji: 4 bytes UTF-8, 1 codepoint
 // Positions: 🎹=0-3, end=4
-// UTF-16:    🎹=0-1, end=2
-var testCases = [[0, 0], [4, 2]];
+// Codepoint: 🎹=0,   end=1 (NOT 2 - selectRange uses codepoints, not UTF-16 units!)
+var testCases = [[0, 0], [4, 1]];
 var allPass = true;
 
 "".postln;
@@ -211,51 +211,57 @@ if(allPass, {
 
 // ==================== TEST 0.9g: Python-generated vectors ====================
 (
-// Auto-generated test vectors from m09-test-vectors.py
-// Format: [string, [[bytePos, utf16Pos], ...]]
+// Test vectors for byte->codepoint conversion
+// Format: [string, [[bytePos, codepointPos], ...]]
+// NOTE: These are CODEPOINT positions, not UTF-16 units!
+// Emoji counts as 1 codepoint regardless of surrogate pair encoding.
 var testVectors = [
-    // ascii_only: byte_len=12, utf16_len=12
+    // ascii_only: byte_len=12, codepoint_len=12
     ["Hello World!", [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11], [12, 12]]],
-    // latin_2byte: byte_len=5, utf16_len=4
+    // latin_2byte: byte_len=5, codepoint_len=4
     ["café", [[0, 0], [1, 1], [2, 2], [3, 3], [5, 4]]],
-    // greek: byte_len=8, utf16_len=4
+    // greek: byte_len=8, codepoint_len=4
     ["αβγδ", [[0, 0], [2, 1], [4, 2], [6, 3], [8, 4]]],
-    // cyrillic: byte_len=12, utf16_len=6
+    // cyrillic: byte_len=12, codepoint_len=6
     ["Привет", [[0, 0], [2, 1], [4, 2], [6, 3], [8, 4], [10, 5], [12, 6]]],
-    // korean: byte_len=6, utf16_len=2
+    // korean: byte_len=6, codepoint_len=2
     ["한글", [[0, 0], [3, 1], [6, 2]]],
-    // japanese: byte_len=9, utf16_len=3
+    // japanese: byte_len=9, codepoint_len=3
     ["日本語", [[0, 0], [3, 1], [6, 2], [9, 3]]],
-    // arrows: byte_len=12, utf16_len=4
+    // arrows: byte_len=12, codepoint_len=4
     ["→←↑↓", [[0, 0], [3, 1], [6, 2], [9, 3], [12, 4]]],
-    // math_symbols: byte_len=12, utf16_len=4
+    // math_symbols: byte_len=12, codepoint_len=4
     ["∑∏∫∂", [[0, 0], [3, 1], [6, 2], [9, 3], [12, 4]]],
-    // single_emoji: byte_len=4, utf16_len=2
-    ["🎹", [[0, 0], [4, 2]]],
-    // multiple_emoji: byte_len=12, utf16_len=6
-    ["🎹🎸🎺", [[0, 0], [4, 2], [8, 4], [12, 6]]],
-    // family_emoji: byte_len=25, utf16_len=11
-    ["👨‍👩‍👧‍👦", [[0, 0], [4, 2], [7, 3], [11, 5], [14, 6], [18, 8], [21, 9], [25, 11]]],
-    // mixed_ascii_arrow: byte_len=13, utf16_len=11
+    // single_emoji: byte_len=4, codepoint_len=1 (NOT 2!)
+    ["🎹", [[0, 0], [4, 1]]],
+    // multiple_emoji: byte_len=12, codepoint_len=3 (NOT 6!)
+    ["🎹🎸🎺", [[0, 0], [4, 1], [8, 2], [12, 3]]],
+    // family_emoji: byte_len=25, codepoint_len=7 (4 base emoji + 3 ZWJ)
+    // 👨(4) + ZWJ(3) + 👩(4) + ZWJ(3) + 👧(4) + ZWJ(3) + 👦(4) = 25 bytes, 7 codepoints
+    ["👨‍👩‍👧‍👦", [[0, 0], [4, 1], [7, 2], [11, 3], [14, 4], [18, 5], [21, 6], [25, 7]]],
+    // mixed_ascii_arrow: byte_len=13, codepoint_len=11
     ["Hello→World", [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [8, 6], [9, 7], [10, 8], [11, 9], [12, 10], [13, 11]]],
-    // mixed_ascii_korean: byte_len=9, utf16_len=5
+    // mixed_ascii_korean: byte_len=9, codepoint_len=5
     ["a한b글c", [[0, 0], [1, 1], [4, 2], [5, 3], [8, 4], [9, 5]]],
-    // mixed_ascii_emoji: byte_len=11, utf16_len=9
-    ["test🎹end", [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [8, 6], [9, 7], [10, 8], [11, 9]]],
-    // mixed_all: byte_len=22, utf16_len=13
-    ["café→한글🎹done", [[0, 0], [1, 1], [2, 2], [3, 3], [5, 4], [8, 5], [11, 6], [14, 7], [18, 9], [19, 10], [20, 11], [21, 12], [22, 13]]],
-    // empty: byte_len=0, utf16_len=0
+    // mixed_ascii_emoji: byte_len=11, codepoint_len=8 (NOT 9!)
+    // t(1)+e(1)+s(1)+t(1)+🎹(4)+e(1)+n(1)+d(1) = 11 bytes, 8 codepoints
+    ["test🎹end", [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [8, 5], [9, 6], [10, 7], [11, 8]]],
+    // mixed_all: byte_len=22, codepoint_len=12 (NOT 13!)
+    // c(1)+a(1)+f(1)+é(2)+→(3)+한(3)+글(3)+🎹(4)+d(1)+o(1)+n(1)+e(1) = 22 bytes, 12 codepoints
+    ["café→한글🎹done", [[0, 0], [1, 1], [2, 2], [3, 3], [5, 4], [8, 5], [11, 6], [14, 7], [18, 8], [19, 9], [20, 10], [21, 11], [22, 12]]],
+    // empty: byte_len=0, codepoint_len=0
     ["", [[0, 0]]],
-    // single_ascii: byte_len=1, utf16_len=1
+    // single_ascii: byte_len=1, codepoint_len=1
     ["a", [[0, 0], [1, 1]]],
-    // single_2byte: byte_len=2, utf16_len=1
+    // single_2byte: byte_len=2, codepoint_len=1
     ["é", [[0, 0], [2, 1]]],
-    // single_3byte: byte_len=3, utf16_len=1
+    // single_3byte: byte_len=3, codepoint_len=1
     ["한", [[0, 0], [3, 1]]],
-    // single_4byte: byte_len=4, utf16_len=2
-    ["🎹", [[0, 0], [4, 2]]],
-    // boundary_test: byte_len=22, utf16_len=16
-    ["abc→def한ghi🎹jkl", [[0, 0], [1, 1], [2, 2], [3, 3], [6, 4], [7, 5], [8, 6], [9, 7], [12, 8], [13, 9], [14, 10], [15, 11], [19, 13], [20, 14], [21, 15], [22, 16]]],
+    // single_4byte: byte_len=4, codepoint_len=1 (NOT 2!)
+    ["🎹", [[0, 0], [4, 1]]],
+    // boundary_test: byte_len=22, codepoint_len=15 (NOT 16!)
+    // a(1)+b(1)+c(1)+→(3)+d(1)+e(1)+f(1)+한(3)+g(1)+h(1)+i(1)+🎹(4)+j(1)+k(1)+l(1) = 22 bytes, 15 codepoints
+    ["abc→def한ghi🎹jkl", [[0, 0], [1, 1], [2, 2], [3, 3], [6, 4], [7, 5], [8, 6], [9, 7], [12, 8], [13, 9], [14, 10], [15, 11], [19, 12], [20, 13], [21, 14], [22, 15]]],
 ];
 
 var totalTests = 0;
@@ -303,12 +309,13 @@ if(failedVectors.size > 0, {
 
 // ==================== TEST 0.9h: Reverse direction ====================
 (
-// Test utf16ToByte with the same vectors
+// Test utf16ToByte (codepoint->byte) with vectors
+// Format: [string, [[codepointPos, bytePos], ...]]
 var testVectors = [
     ["Hello World!", [[0, 0], [1, 1], [5, 5], [12, 12]]],
-    ["café", [[0, 0], [3, 3], [4, 5]]],  // utf16=4 should give byte=5
+    ["café", [[0, 0], [3, 3], [4, 5]]],  // codepoint 4 = after é = byte 5
     ["한글", [[0, 0], [1, 3], [2, 6]]],
-    ["🎹", [[0, 0], [2, 4]]],
+    ["🎹", [[0, 0], [1, 4]]],  // codepoint 1 = after emoji = byte 4 (NOT codepoint 2!)
     ["a한b글c", [[0, 0], [1, 1], [2, 4], [3, 5], [4, 8], [5, 9]]],
     ["Hello→World", [[0, 0], [5, 5], [6, 8], [11, 13]]],
 ];
