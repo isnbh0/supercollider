@@ -208,9 +208,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 2.1] Basic replacement".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "basic", "0.5");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "basic", "0.5");
     "[TEST 2.1] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -252,9 +254,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 2.4] Empty placeholder".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "empty", "FILLED");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "empty", "FILLED");
     "[TEST 2.4] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -264,9 +268,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 2.5] Spaced placeholder".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "spaced", "no_spaces");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "spaced", "no_spaces");
     "[TEST 2.5] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -276,9 +282,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 2.6] Multiline placeholder".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "multiline", "single_line");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "multiline", "single_line");
     "[TEST 2.6] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 //
@@ -314,9 +322,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 3.2] After unicode - drift test".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "afterunicode", "DRIFTED");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "afterunicode", "DRIFTED");
     "[TEST 3.2] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -326,9 +336,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 3.3] Nested parens".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "nested", "NESTED_OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "nested", "NESTED_OK");
     "[TEST 3.3] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -338,9 +350,11 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[TEST 3.4] Musical symbols (surrogate pairs)".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "musical", "0.99");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "musical", "0.99");
     "[TEST 3.4] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -351,45 +365,55 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[ADV 1] Semicolon in content".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "semis", "OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "semis", "OK");
     "[ADV 1] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ADV 2: Tilde pattern in content (tricky - might match wrong thing)
 (
 "[ADV 2] Tilde pattern in content".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "meta", "META_OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "meta", "META_OK");
     "[ADV 2] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ADV 3: Zero-width spaces
 (
 "[ADV 3] Zero-width spaces".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "zerowidth", "ZW_OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "zerowidth", "ZW_OK");
     "[ADV 3] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ADV 4: Mixed BMP and non-BMP
 (
 "[ADV 4] Mixed BMP and non-BMP".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "mixedplanes", "MIX_OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "mixedplanes", "MIX_OK");
     "[ADV 4] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ADV 5: Special characters
 (
 "[ADV 5] Special characters".postln;
 {
-    var ok = ~replaceController.(~targetDoc, "special", "SPEC_OK");
+    var ok;
+    0.3.wait;
+    ok = ~replaceController.(~targetDoc, "special", "SPEC_OK");
     "[ADV 5] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -399,10 +423,12 @@ var m09Dir = m2Dir +/+ "../m09/";
 (
 "[FINAL] End marker integrity".postln;
 {
-    var text = ~targetDoc.string;
-    var ok = text.find("END_MARKER: OK").notNil;
+    var text, ok;
+    0.3.wait;
+    text = ~targetDoc.string;
+    ok = text.find("END_MARKER: OK").notNil;
     "[FINAL] %".format(if(ok, "PASS", "FAIL")).postln;
-}.defer(0.3);
+}.fork(AppClock);
 )
 
 // ============================================================
@@ -411,7 +437,7 @@ var m09Dir = m2Dir +/+ "../m09/";
 
 (
 "[VERIFY] Current target:".postln;
-{ ~targetDoc.string.postln; }.defer(0.3);
+{ 0.3.wait; ~targetDoc.string.postln; }.fork(AppClock);
 )
 
 // ============================================================
@@ -474,10 +500,12 @@ var m09Dir = m2Dir +/+ "../m09/";
 
 // END_MARKER: OK
 ";
-    var text = ~targetDoc.string;
-    var utf16Len = ~byteToUtf16.(text, text.size);
+    var text, utf16Len;
+    0.3.wait;
+    text = ~targetDoc.string;
+    utf16Len = ~byteToUtf16.(text, text.size);
     ~targetDoc.selectRange(0, utf16Len);
     ~targetDoc.selectedString_(original);
     "[RESET] Done".postln;
-}.defer(0.3);
+}.fork(AppClock);
 )

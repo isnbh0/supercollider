@@ -269,3 +269,44 @@ When the content being replaced contains non-BMP characters (emoji, musical symb
 **Status:** Under investigation. Hypothesis: `selectRange` length calculation is off by the number of surrogate pairs in the content.
 
 **Workaround:** TBD - may need to adjust UTF-16 length calculation for surrogate pairs in selection.
+
+---
+
+## `.wait` requires a Routine context (use `.fork`, not `.defer`)
+
+**Date:** 2026-01-13
+
+**Problem:**
+```supercollider
+// WRONG - causes PrimitiveFailedError
+{
+    var ok = myFunctionThatUsesWait.();
+    "done".postln;
+}.defer(0.3);
+```
+
+```
+ERROR: Primitive '_RoutineYield' failed.
+```
+
+**Why:** `.wait` can only be called inside a Routine. `.defer` schedules a function on AppClock but does NOT create a Routine context. `.fork` creates a Routine that runs on the specified clock.
+
+**Solution:**
+```supercollider
+// CORRECT - fork creates Routine context
+{
+    0.3.wait;  // delay if needed
+    var ok = myFunctionThatUsesWait.();
+    "done".postln;
+}.fork(AppClock);
+```
+
+**Quick reference:**
+
+| Method | Creates Routine? | `.wait` works? |
+|--------|------------------|----------------|
+| `.defer(delay)` | No | No |
+| `.fork(clock)` | Yes | Yes |
+| `Routine { }.play` | Yes | Yes |
+
+**Rule:** If your function (or anything it calls) uses `.wait`, wrap it with `.fork`, not `.defer`.

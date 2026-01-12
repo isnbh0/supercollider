@@ -26,7 +26,7 @@
 ~korean.(한글한글);
 
 // === UNICODE (NON-BMP - 4 byte UTF-8, 2 UTF-16 surrogate pairs) ===
-~emoji.(0.3
+~emoji.(🎹🎹);
 ~musical.(𝄞𝄞𝄞);
 
 // === AFTER UNICODE (drift test) ===
