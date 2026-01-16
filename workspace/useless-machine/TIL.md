@@ -245,9 +245,9 @@ Or declare all vars at function top:
 
 ---
 
-## Surrogate pairs in selection content: still investigating
+## Surrogate pairs in selection content: FIXED in SC IDE
 
-**Date:** 2026-01-12
+**Date:** 2026-01-12 (fixed 2026-01-13)
 
 **Problem:**
 ```supercollider
@@ -257,18 +257,22 @@ Or declare all vars at function top:
 
 When the content being replaced contains non-BMP characters (emoji, musical symbols - 4-byte UTF-8 / surrogate pairs), the `);` gets eaten.
 
-**What works:**
-- Byte↔UTF-16 conversion functions (M0.9 tests pass)
-- Document manipulation with ASCII markers (M1.5 tests pass)
-- Replacing content that is ASCII or BMP unicode (arrows, CJK)
+**Root cause:** SC IDE's `Document.setTextInRange` in `editors/sc-ide/core/doc_manager.cpp` mixed position semantics:
+- `setPosition()` uses UTF-16 code units
+- `movePosition(NextCharacter)` moves by graphemes
 
-**What fails:**
-- Replacing content that contains surrogate pairs (emoji 🎹, musical 𝄞)
-- The selection appears to include 2 extra UTF-16 units
+For emoji (1 grapheme = 2 UTF-16 units), this mismatch caused over-selection.
 
-**Status:** Under investigation. Hypothesis: `selectRange` length calculation is off by the number of surrogate pairs in the content.
+**Fix (commit `86238d725`):**
+```cpp
+// Before (broken): moves by graphemes
+cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, range);
 
-**Workaround:** TBD - may need to adjust UTF-16 length calculation for surrogate pairs in selection.
+// After (fixed): uses UTF-16 code units consistently
+cursor.setPosition(start + range, QTextCursor::KeepAnchor);
+```
+
+**Requires:** SC IDE built from branch `projects/useless-machine` or with equivalent patch.
 
 ---
 

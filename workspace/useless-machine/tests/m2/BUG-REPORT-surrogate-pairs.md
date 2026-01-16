@@ -1,5 +1,7 @@
 # Bug Report: Surrogate Pair Replacement Eats Closing `);`
 
+**Status:** FIXED in commit `86238d725`
+
 ## Summary
 
 When replacing content that contains non-BMP Unicode characters (emoji, musical symbols), the replacement eats the closing `);` of the controller pattern.
@@ -72,9 +74,21 @@ The byte→UTF-16 position conversion is correct in isolation (M0.9 tests pass),
 ~byteToUtf16 = {|text, bytePos| /* walks text, converts byte pos to UTF-16 pos */ };
 ```
 
-## Next Steps
+## Resolution
 
-1. Add more debug output to see exact UTF-16 positions being used
-2. Test with single emoji vs double emoji to see if error scales
-3. Check if `selectRange` length parameter is count or end-position
-4. Verify the M0.9 converter handles surrogate pairs correctly in this context
+**Root cause:** SC IDE's `Document.setTextInRange` in `editors/sc-ide/core/doc_manager.cpp` used inconsistent position semantics:
+- `setPosition()` uses UTF-16 code units
+- `movePosition(NextCharacter)` moves by graphemes (user-perceived characters)
+
+For emoji like 🎹 (1 grapheme = 2 UTF-16 code units), passing `range=4` (for 2 emoji × 2 UTF-16 units) to `movePosition` moved 4 graphemes instead of 4 code units, selecting too much text.
+
+**Fix:**
+```cpp
+// Before (broken)
+cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, range);
+
+// After (fixed)
+cursor.setPosition(start + range, QTextCursor::KeepAnchor);
+```
+
+**Requires:** SC IDE built from branch `projects/useless-machine` or with equivalent patch applied.

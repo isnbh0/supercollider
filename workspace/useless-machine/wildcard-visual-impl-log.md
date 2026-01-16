@@ -213,21 +213,67 @@ Where drift accumulates as:
 
 ## Milestone 2: Single Text Replacement
 
-**Status:** Not Started
+**Status:** Complete ✓
 
 **Prerequisite:** M0.9 converter + M1 registry
 
 **Key change from original spec:** All `selectRange` calls must use `~byteToUtf16` conversion.
 
+### SC IDE Bug Fix (Blocker Resolved)
+
+Surrogate pair replacement was broken due to a bug in SC IDE's `Document.setTextInRange`. Fixed in commit `86238d725`:
+
+```cpp
+// Before: movePosition moves by graphemes (wrong for surrogate pairs)
+cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, range);
+
+// After: setPosition uses UTF-16 code units consistently
+cursor.setPosition(start + range, QTextCursor::KeepAnchor);
+```
+
+**Requires:** SC IDE built from this branch or with equivalent patch.
+
+### Test Files
+
+- `tests/m2/test-runner.scd` - Test harness with `~replaceController` helper
+- `tests/m2/test-target.scd` - Test file with controller patterns
+
+### Test Results
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 2.1 | Basic replacement | PASS | |
+| 2.2 | Varying lengths | PASS | |
+| 2.3 | Non-dot placeholders | PASS | |
+| 2.4 | Empty placeholder | PASS | |
+| 2.5 | Spaced placeholder | PASS | |
+| 2.6 | Multiline placeholder | PASS | |
+| 3.1 | Unicode (BMP) | PASS | arrows, Korean |
+| 3.2 | After unicode drift | PASS | |
+| 3.3 | Nested parens | PASS | |
+| 3.4 | Musical symbols (surrogate pairs) | PASS | Fixed by SC IDE patch |
+| ADV 1-5 | Adversarial cases | PASS | |
+
+**Milestone 2 Complete** - Proceeding to Milestone 3.
+
 ---
 
 ## Milestone 3: Position Tracking After Insertion
 
-**Status:** Not Started
+**Status:** Complete ✓
 
 **Prerequisite:** M0.9 converter + M1 registry
 
 **Key insight:** After text modification, must re-fetch `doc.string` and rescan byte positions before next operation.
+
+### Implementation
+
+The `~replaceController` helper in `tests/m2/test-runner.scd` demonstrates the pattern:
+- Re-fetch `doc.string` at start of each operation
+- Re-find pattern position (no caching of stale positions)
+- Sequential tests (2.2, 2.3, 3.1) verify this works across multiple replacements
+
+**Milestone 3 Complete** - Covered by M2/M3 test runner.
 
 ---
 
@@ -325,9 +371,9 @@ Where drift accumulates as:
 3. ✓ M0.9: Position Converter Utility
 4. ✓ M1: Read-Only Document Inspection
 5. ✓ M1.5: Cross-File Document Manipulation
-6. → M2: Single Text Replacement (NEXT)
-7. M3: Position Tracking After Insertion
-8. M4: Repeated Operations
+6. ✓ M2: Single Text Replacement
+7. ✓ M3: Position Tracking After Insertion
+8. → M4: Repeated Operations (NEXT)
 9. M5: Integration with Wildcard
 10. M6: Error Handling & Recovery
 11. M7: Async Cross-File Mutations
