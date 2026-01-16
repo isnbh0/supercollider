@@ -259,12 +259,12 @@ GIT_AUTHOR_DATE="$DATE" GIT_COMMITTER_DATE="$DATE" git commit -m "<message>"
 | 18 | 2576d09 | Move tests to tests/ | DONE |
 | 19 | 5363df0 | Add M15 test utilities | DONE |
 | 20 | b0305c8 | Add M2 test framework | DONE |
-| 21 | 85912d7 | Add surrogate pairs bug report | |
-| 22 | ad8c43c | Add selectRange length test | |
-| 23 | 6f1a545 | Add selectRange experiment | |
-| 24 | 7eaf225 | Add selectRange test to M2 | |
-| 25 | 2ce890c | Document surrogate pair bug | |
-| 26 | bceed3c | Finalize M2 assertions | |
+| 21 | 85912d7 | Add surrogate pairs bug report | DONE |
+| 22 | ad8c43c | Add selectRange length test | DONE |
+| 23 | 6f1a545 | Add selectRange experiment | DONE |
+| 24 | 7eaf225 | Add selectRange test to M2 | DONE |
+| 25 | 2ce890c | Document surrogate pair bug | DONE |
+| 26 | bceed3c | Finalize M2 assertions | DONE |
 
 ---
 
