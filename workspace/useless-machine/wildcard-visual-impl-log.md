@@ -320,19 +320,43 @@ Initial test 4.7 (Unicode breadcrumbs) failed because the M4 converter used a si
 
 ## Milestone 4.5: Cursor Preservation During Same-Document Edits
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Modify document text without disrupting user's cursor position when editing the same document.
 
 **Problem:** `selectRange` + `selectedString_` moves cursor to edit location, disrupting user workflow.
 
-**Test File:** `tests/m45/` (to be created)
+**Test Files:** `tests/m45/`
+- `test-runner.scd` - Test harness with API probes and test cases
+- `test-target.scd` - Test fixture with controller patterns
 
 ### Research Questions
 
 1. Does SC have `setTextInRange` or similar non-cursor-moving API?
+   - **Finding:** `setTextInRange` is C++ layer only, not callable from sclang
+   - **Finding:** `doc.string(text, start, len)` may exist as setter (testing)
 2. Can save/restore `selectionStart`/`selectionSize` work reliably?
+   - **Testing:** Probe 4.5.0b in test-runner.scd
 3. How to adjust cursor position when replacement changes text length?
+   - **Solution:** Calculate `lengthDelta = newValue.size - oldLen`, adjust if cursor was after edit
+
+### Implementation Approach
+
+The `~m45ReplacePreserveCursor` helper:
+1. Save `selectionStart` and `selectionSize` before edit
+2. Perform the replacement using `selectRange` + `selectedString_`
+3. Restore cursor with adjustment based on position relative to edit:
+   - **Before edit:** No adjustment needed
+   - **After edit:** Adjust by `lengthDelta`
+   - **Inside edit region:** Place at end of new content
+
+### API Probes
+
+| Probe | Description | Status | Notes |
+|-------|-------------|--------|-------|
+| 4.5.0a | doc.string(text, start, len) setter | PENDING | Would avoid cursor movement |
+| 4.5.0b | selectionStart save/restore | PENDING | Fallback approach |
+| 4.5.0c | Verify edit moves cursor | PENDING | Confirm the problem |
 
 ### Test Cases
 
@@ -436,8 +460,8 @@ Initial test 4.7 (Unicode breadcrumbs) failed because the M4 converter used a si
 6. ✓ M2: Single Text Replacement
 7. ✓ M3: Position Tracking After Insertion
 8. ✓ M4: Repeated Operations
-9. → M4.5: Cursor Preservation (NEXT)
-10. → M5: Integration with Wildcard (IN PROGRESS)
+9. → M4.5: Cursor Preservation (IN PROGRESS - tests created)
+10. → M5: Integration with Wildcard (BLOCKED on M4.5)
 11. M6: Error Handling & Recovery
 12. M7: Async Cross-File Mutations
 13. M8: Reactive/Watching Mode
