@@ -1002,46 +1002,131 @@ controllers.do {|name, i|
 
 ### Milestone 5: Integration with Wildcard
 
-**Goal:** Wire visual mode into existing wildcard mutations.
+**Goal:** Build a minimal wildcard-like system using proven utilities, then integrate into main wildcard.scd.
 
-**Test 5.1: Visual jitter mutation**
+**Approach:** Standalone test environment in `tests/m5/` that incrementally builds toward full integration.
+
+#### Test Structure
+
+```
+tests/m5/
+├── utils.scd           # Consolidated utilities from M0.9-M4
+├── test-target.scd     # Minimal fixture with controller patterns
+├── mini-wildcard.scd   # Tiny chaos engine for testing
+└── test-runner.scd     # Integration tests
+```
+
+#### Phase 5.1: Utils Module
+
+Consolidate proven code from previous milestones into a clean, loadable module:
+
 ```supercollider
-// Add to wildcard.scd or test standalone
-(
-~wildcardJitterVisual = {
-    var newJitter = rrand(0.1, 0.5);
-    var dotCount = (newJitter / 0.3 * 10).round.asInteger.clip(0, 10);
-    var info, doc, newDots, len;
+// utils.scd - Load with: (thisProcess.nowExecutingPath.dirname +/+ "utils.scd").load
 
-    // Runtime update (always)
-    ~playheadJitter = newJitter;
+// === UTF-8/UTF-16 CONVERTERS (from M0.9) ===
+~utf8ByteLength = {|byte| ... };      // Handles signed bytes
+~utf16UnitCount = {|byteLen| ... };   // 4-byte = 2 units (surrogate)
+~byteToUtf16 = {|text, bytePos| ... };
+~utf16ToByte = {|text, utf16Pos| ... };
 
-    // Visual update (if enabled)
-    if(~wildcardVisualMode == true, {
-        ~visualRescanAll.();
-        info = ~testRegistry[\jitter];
-        if(info.notNil, {
-            doc = Document.current;
-            newDots = String.fill(dotCount, $.);
-            len = info.dotEnd - info.dotStart;
-            doc.selectRange(info.dotStart, len);
-            doc.selectedString_(newDots);
-        });
-    });
+// === DOCUMENT HELPERS (from M4) ===
+~getDocByFilename = {|filename| ... };  // Find open doc without focus steal
+~replaceContent = {|doc, name, value| ... };  // Pattern-based replacement
+~insertBefore = {|doc, name, text| ... };     // Insert at line start
+~verifyContent = {|doc, name, expected| ... }; // Verification helper
+```
 
-    "JITTER: % (% dots)".format(newJitter.round(0.01), dotCount).postln;
+#### Phase 5.2: Mini-Wildcard
+
+A stripped-down chaos engine that exercises the visual mutation pattern:
+
+```supercollider
+// mini-wildcard.scd - Minimal chaos engine for testing
+
+// === STATE ===
+~miniLevel = 1;           // 1-5 chaos intensity
+~miniVisualMode = true;   // Toggle visual mutations
+~miniRunning = false;
+~miniDoc = nil;           // Target document handle
+
+// === MUTATIONS ===
+~miniMutations = (
+    jitter: { rrand(0.0, 0.3) },
+    speed: { rrand(0.5, 2.0) },
+    reverb: { rrand(0.0, 1.0) },
+);
+
+// === CORE LOOP ===
+~miniStart = {
+    ~miniDoc = ~getDocByFilename.("test-target.scd");
+    ~miniRunning = true;
+    ~miniRoutine = {
+        while { ~miniRunning } {
+            var mutation = ~miniMutations.keys.choose;
+            var value = ~miniMutations[mutation].();
+            var dots = String.fill((value * 10).asInteger, $.);
+
+            // Visual update
+            if (~miniVisualMode) {
+                ~replaceContent.(~miniDoc, mutation, dots);
+            };
+
+            // Log
+            "[MINI] % → %".format(mutation, value.round(0.01)).postln;
+
+            // Wait (faster at higher levels)
+            rrand(0.5, 3.0 - (~miniLevel * 0.4)).wait;
+        };
+    }.fork(AppClock);
 };
 
-// Test it
-~wildcardVisualMode = true;
-~wildcardJitterVisual.();
-)
+~miniStop = { ~miniRunning = false };
+```
+
+#### Phase 5.3: Test Cases
+
+| Test | Description | Validates |
+|------|-------------|-----------|
+| 5.1 | Utils load without error | Module structure |
+| 5.2 | Single mutation via mini-wildcard | Basic integration |
+| 5.3 | 10 mutations in sequence | Position tracking |
+| 5.4 | Visual mode toggle | Mode switching |
+| 5.5 | Cross-file operation | Document targeting |
+| 5.6 | Breadcrumb + mutation | Combined operations |
+
+#### Phase 5.4: Main Wildcard Integration
+
+Once mini-wildcard works, integrate into real `wildcard.scd`:
+
+1. Load utils module at wildcard startup
+2. Add `~wildcardVisualMode` toggle (default: false)
+3. Modify existing mutation functions to call visual update when enabled
+4. Wire up document targeting (soundtest.scd)
+
+```supercollider
+// In wildcard.scd - integration pattern
+~wildcardJitter = {
+    var newJitter = rrand(0.1, 0.5);
+
+    // Runtime (always)
+    ~playheadJitter = newJitter;
+
+    // Visual (if enabled)
+    if (~wildcardVisualMode == true) {
+        var dots = String.fill((newJitter / 0.3 * 10).round.asInteger.clip(0, 10), $.);
+        ~replaceContent.(~soundtestDoc, "jitter", dots);
+    };
+
+    ~wildcardSpam.(">>> WILDCARD 지터: " ++ newJitter.round(0.01) ++ " <<<");
+};
 ```
 
 **Milestone 5 Exit Criteria:**
-- [ ] Visual mutations work when ~wildcardVisualMode = true
-- [ ] Runtime-only mode still works when false
-- [ ] No errors during normal wildcard operation
+- [ ] Utils module loads and all functions work
+- [ ] Mini-wildcard runs 10+ mutations without error
+- [ ] Visual mode toggle works (on/off)
+- [ ] Integration pattern validated in isolated test
+- [ ] Ready to port to main wildcard.scd
 
 ---
 
