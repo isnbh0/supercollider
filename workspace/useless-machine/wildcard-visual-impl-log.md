@@ -378,11 +378,13 @@ The `~m45ReplacePreserveCursor` helper:
 
 ## Milestone 4.6: Async Cross-File Mutation (Observational Test)
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Verify that an async background process can mutate a document while the user is actively editing it, without visibly stealing cursor focus.
 
 **Problem:** M4.5 tests cursor preservation within a single execution context. The real wildcard scenario involves a background Routine mutating the same file the user is focused on.
+
+**Test File:** `tests/m46/test-workspace.scd`
 
 ### Key Insight
 
@@ -394,18 +396,19 @@ Single file containing both mutation targets and test code:
 
 ```
 tests/m46/test-workspace.scd
-├── [TOP] Controller patterns (~alpha, ~beta, etc.) - mutation targets
-├── [MIDDLE] Padding text
-└── [BOTTOM] Test block that user executes - cursor stays here
+├── [TOP] Controller patterns (~alpha, ~beta, ~gamma, ~delta) - mutation targets
+├── [MIDDLE] Padding text (10+ lines)
+├── [SETUP] Utility functions block (run first)
+└── [BOTTOM] Test blocks that user executes - cursor stays here
 ```
 
 ### Test Flow
 
-1. User opens `test-workspace.scd`
-2. User places cursor inside the test block (bottom section)
-3. User executes the test block
-4. Test block schedules async mutations (via `fork`) to the top section
-5. Mutations fire after delays (e.g., 1s, 2s, 3s)
+1. User opens `tests/m46/test-workspace.scd`
+2. User runs the SETUP block to load utilities
+3. User places cursor inside the TEST BLOCK section (bottom)
+4. User executes a test block
+5. Mutations fire after delays via `fork(AppClock)`
 6. User **observes** whether cursor visibly jumps
 7. User self-reports: cursor stayed = PASS, cursor jumped = FAIL
 
@@ -413,9 +416,15 @@ tests/m46/test-workspace.scd
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 4.6a | Single async mutation | PENDING | Observational |
-| 4.6b | Multiple timed mutations | PENDING | 1s, 2s, 3s delays |
-| 4.6c | Rapid mutations | PENDING | Stress test |
+| Main | 4 mutations at 1s intervals | PENDING | ~alpha, ~beta, ~gamma, ~delta |
+| 4.6a | Single async mutation | PENDING | 2s delay, ~alpha only |
+| 4.6b | Rapid mutations (stress) | PENDING | 10 mutations, 0.3s apart |
+
+### Implementation Notes
+
+- Uses `~m46ReplacePreserveCursor` helper (adapted from M4.5)
+- All mutations use `fork(AppClock)` for async scheduling
+- Includes RESET block to restore original controller values
 
 ---
 

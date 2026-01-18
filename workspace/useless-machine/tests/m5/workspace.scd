@@ -24,10 +24,10 @@ var dir = thisProcess.nowExecutingPath.dirname;
 // CONTROL KNOBS (wildcard mutates these)
 // ============================================================
 
-~jitter.(.....);
+~jitter.(.........);
 
-~speed.(....);
+~speed.(.....);
 
-~reverb.(......);
+~reverb.(.......);
 
 // ============================================================
