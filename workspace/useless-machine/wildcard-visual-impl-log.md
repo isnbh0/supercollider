@@ -455,7 +455,7 @@ sclang: doc.string_(text, start, len)
 
 ## Milestone 4.7: Async Mutation + Code Execution (Observational Test)
 
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Verify that a background process can mutate document text AND execute the modified code block without stealing cursor focus or scrolling the view.
 
@@ -468,30 +468,44 @@ sclang: doc.string_(text, start, len)
 2. Does executing code that references `Document.current` cause issues?
 3. Can we execute a specific line/block without selecting it first?
 
-**Test File:** `tests/m47/test-workspace.scd` (to be created)
+**Test File:** `tests/m47/test-workspace.scd`
 
-### Test Approach
+### Implementation
+
+The test file includes:
+- **Controller patterns**: `~alpha`, `~beta`, `~gamma`, `~delta` that set environment variables and post messages when executed
+- **Execution counters**: `~alphaCount`, etc. to verify code ran
+- **`~m47MutateAndExecute` helper**: Combines stealth edit with code interpretation
 
 ```supercollider
-// Step 1: Stealth edit (proven in M4.6)
-doc.string_(newValue, utf16Start, utf16Len);
+~m47MutateAndExecute = { |doc, controllerName, newValue|
+    var success, code;
 
-// Step 2: Execute the code
-var code = "( ~alpha.(\"" ++ newValue ++ "\"))";
-code.interpret;
+    // Step 1: Stealth edit the document
+    success = ~m47ReplaceNoCursorMove.(doc, controllerName, newValue);
+
+    if (success) {
+        // Step 2: Build and execute the code
+        code = "~" ++ controllerName ++ ".(\"" ++ newValue ++ "\")";
+        code.interpret;
+    };
+
+    success;
+};
 ```
 
 ### Test Cases
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
+| Main | 4 mutations + executions at 1s intervals | PENDING | Cursor + execution check |
 | 4.7a | Single mutation + interpret | PENDING | Basic case |
-| 4.7b | Multiple mutations + interprets | PENDING | Sequence test |
-| 4.7c | Mutation with audio side-effect | PENDING | Verify code ran |
+| 4.7b | Rapid mutations + interprets (10x, 0.3s) | PENDING | Stress test |
+| 4.7c | Mutation with side-effect verification | PENDING | Check post window |
 
 ### Exit Criteria
 
-- [ ] Test file created with executable controller patterns
+- [x] Test file created with executable controller patterns
 - [ ] Mutation + interpret works from background routine
 - [ ] User observes no focus/scroll steal during execution
 - [ ] Verify code actually ran (side effect observable)
@@ -590,8 +604,9 @@ code.interpret;
 7. ✓ M3: Position Tracking After Insertion
 8. ✓ M4: Repeated Operations
 9. ✓ M4.5: Cursor Preservation (COMPLETE)
-10. → M4.6: Async Mutation Observational Test (NEXT)
-11. → M5: Integration with Wildcard (BLOCKED on M4.6)
-12. M6: Error Handling & Recovery
-13. M7: Async Cross-File Mutations
-14. M8: Reactive/Watching Mode
+10. ✓ M4.6: Async Mutation Observational Test (COMPLETE)
+11. → M4.7: Async Mutation + Code Execution (IN PROGRESS - test file created)
+12. M5: Integration with Wildcard (BLOCKED on M4.7)
+13. M6: Error Handling & Recovery
+14. M7: Async Cross-File Mutations
+15. M8: Reactive/Watching Mode
