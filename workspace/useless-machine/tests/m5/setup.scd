@@ -54,6 +54,11 @@
     doc;
 };
 
+// Get doc by path - no focus steal, returns nil if not open
+~getDocByPath = {|path|
+    Document.allDocuments.detect { |d| d.path == path };
+};
+
 ~replaceContent = {|doc, controllerName, newValue|
     var text, pattern, patternPos, contentStart, contentEnd, depth;
     var utf16Start, utf16Len;

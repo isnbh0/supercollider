@@ -7,7 +7,8 @@
 var dir = thisProcess.nowExecutingPath.dirname;
 (dir +/+ "setup.scd").load;
 (dir +/+ "wildcard.scd").load;
-~wcDoc = Document.current;
+~wcPath = thisProcess.nowExecutingPath;
+~wcDoc = ~getDocByPath.(~wcPath);
 "[WORKSPACE] Ready. Target: %".format(~wcDoc.title).postln;
 )
 
