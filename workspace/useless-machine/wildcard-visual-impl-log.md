@@ -279,7 +279,42 @@ The `~replaceController` helper in `tests/m2/test-runner.scd` demonstrates the p
 
 ## Milestone 4: Repeated Operations
 
-**Status:** Not Started
+**Status:** Complete ✓
+
+**Goal:** Handle multiple mutations without accumulating errors.
+
+**Test Files:** `tests/m4/`
+- `test-runner.scd` - Test harness with breadcrumb insertion
+- `test-target.scd` - Test fixture with multiple controller patterns
+
+### Bug Fix: Signed Byte Handling
+
+Initial test 4.7 (Unicode breadcrumbs) failed because the M4 converter used a simplified `~utf8ByteLength` that didn't handle signed byte values. Bytes > 127 (like emoji leading byte `0xF0`) were interpreted as negative values by `.asInteger`, causing incorrect UTF-16 position calculations.
+
+**Fix:** Updated to use `.ascii` with explicit signed-to-unsigned conversion (matching M09 module):
+```supercollider
+{ code < 0 } {
+    var unsigned = code + 256;
+    // ... use unsigned for comparisons
+}
+```
+
+### Test Results
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 4.1 | 5 sequential replacements | PASS | No breadcrumbs |
+| 4.2 | Single breadcrumb + replacement | PASS | Position shift handled |
+| 4.3 | 3 breadcrumb+replacement cycles | PASS | |
+| 4.4 | END_MARKER integrity | PASS | |
+| 4.5 | Reverse order (bottom-to-top) | PASS | Adversarial |
+| 4.6 | Adjacent controllers | PASS | No gap between lines |
+| 4.7 | Unicode breadcrumb content | PASS | Emoji, CJK, arrows in breadcrumbs |
+| 4.8 | First-line controller | PASS | Position 0 boundary |
+| 4.9 | Stress test (10 cycles) | PASS | Accumulating drift |
+| 4.10 | Minimal breadcrumb (3 bytes) | PASS | Edge case |
+
+**Milestone 4 Complete** - Proceeding to Milestone 5.
 
 ---
 
@@ -373,8 +408,8 @@ The `~replaceController` helper in `tests/m2/test-runner.scd` demonstrates the p
 5. ✓ M1.5: Cross-File Document Manipulation
 6. ✓ M2: Single Text Replacement
 7. ✓ M3: Position Tracking After Insertion
-8. → M4: Repeated Operations (NEXT)
-9. M5: Integration with Wildcard
+8. ✓ M4: Repeated Operations
+9. → M5: Integration with Wildcard (NEXT)
 10. M6: Error Handling & Recovery
 11. M7: Async Cross-File Mutations
 12. M8: Reactive/Watching Mode
