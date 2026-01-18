@@ -2,29 +2,34 @@
 // M4.6 TEST WORKSPACE - Async Mutation Observational Test
 // ============================================================
 // This file tests whether async background mutations visibly steal
-// cursor focus from the user.
+// cursor focus or scroll the view.
+//
+// KEY DISCOVERY:
+// - selectRange + selectedString_ DOES move cursor and scroll view
+// - doc.string_(text, start, len) does NOT move cursor or scroll!
+//   (It uses setTextInRange internally which creates a separate QTextCursor)
 //
 // INSTRUCTIONS:
 // 1. Open this file in SC IDE
 // 2. Run the SETUP block first (below the targets)
 // 3. Place your cursor in the TEST BLOCK section (bottom)
 // 4. Run the TEST BLOCK
-// 5. OBSERVE: Does your cursor jump when mutations fire?
-//    - If cursor stays in test block: PASS
-//    - If cursor visibly jumps to mutation targets: FAIL
+// 5. OBSERVE: Does your cursor jump or view scroll when mutations fire?
+//    - Cursor stays AND view doesn't scroll: PASS
+//    - Cursor jumps OR view scrolls: FAIL
 // ============================================================
 
 // ============================================================
 // MUTATION TARGETS (top section - mutations happen here)
 // ============================================================
 
-~alpha.(.........);
+~alpha.(MUT1);
 
-~beta.(......);
+~beta.(MUTATION2);
 
-~gamma.(....);
+~gamma.(M3);
 
-~delta.(........);
+~delta.(MUTATED_4);
 
 // ============================================================
 // PADDING (middle section)
@@ -85,19 +90,16 @@
     utf16Pos;
 };
 
-// === CURSOR-PRESERVING REPLACEMENT (from M4.5) ===
+// === NO-CURSOR-MOVE REPLACEMENT ===
+// Uses doc.string_ which internally calls setTextInRange (separate QTextCursor)
+// This does NOT move cursor or scroll the view!
 
-~m46ReplacePreserveCursor = { |doc, controllerName, newValue|
+~m46ReplaceNoCursorMove = { |doc, controllerName, newValue|
     var text, pattern, patternPos, contentStart, contentEnd;
     var utf16Start, utf16Len;
-    var savedCursorStart, savedCursorSize;
-    var lengthDelta, depth;
+    var depth;
 
-    // Save current cursor position
-    savedCursorStart = doc.selectionStart;
-    savedCursorSize = doc.selectionSize;
-
-    // Find and replace
+    // Find the pattern
     text = doc.string;
     pattern = "~" ++ controllerName ++ ".(";
     patternPos = text.find(pattern);
@@ -119,22 +121,9 @@
 
         utf16Start = ~byteToUtf16.(text, contentStart);
         utf16Len = ~byteToUtf16.(text, contentEnd) - utf16Start;
-        lengthDelta = newValue.size - utf16Len;
 
-        // Do the replacement
-        doc.selectRange(utf16Start, utf16Len);
-        doc.selectedString_(newValue);
-
-        // Restore cursor position with adjustment
-        if (savedCursorStart >= (utf16Start + utf16Len)) {
-            doc.selectRange(savedCursorStart + lengthDelta, savedCursorSize);
-        } {
-            if (savedCursorStart >= utf16Start) {
-                doc.selectRange(utf16Start + newValue.size, 0);
-            } {
-                doc.selectRange(savedCursorStart, savedCursorSize);
-            };
-        };
+        // Use doc.string_ which doesn't move cursor or scroll!
+        doc.string_(newValue, utf16Start, utf16Len);
 
         true;
     };
@@ -143,7 +132,7 @@
 // === MUTATION HELPER ===
 
 ~m46Mutate = { |doc, controllerName, newValue|
-    ~m46ReplacePreserveCursor.(doc, controllerName, newValue);
+    ~m46ReplaceNoCursorMove.(doc, controllerName, newValue);
 };
 
 "[M4.6] Setup complete - utilities loaded".postln;

@@ -314,3 +314,63 @@ ERROR: Primitive '_RoutineYield' failed.
 | `Routine { }.play` | Yes | Yes |
 
 **Rule:** If your function (or anything it calls) uses `.wait`, wrap it with `.fork`, not `.defer`.
+
+---
+
+## Two ways to edit Document text: visible vs stealth
+
+**Date:** 2026-01-18
+
+**Discovery:** SC IDE has two different edit mechanisms with very different UX behavior.
+
+### Method 1: selectRange + selectedString_ (visible edit)
+
+```supercollider
+doc.selectRange(start, len);
+doc.selectedString_(newText);
+```
+
+**Behavior:**
+- Moves cursor to edit location
+- Scrolls view to make edit visible
+- Selection highlight appears briefly
+
+**Use when:** You WANT the user to see the edit happen (e.g., user-initiated find/replace).
+
+### Method 2: doc.string_ (stealth edit)
+
+```supercollider
+doc.string_(newText, start, len);
+```
+
+**Behavior:**
+- Does NOT move cursor
+- Does NOT scroll view
+- Edit happens invisibly in place
+
+**Use when:** Background mutations that shouldn't disrupt user workflow.
+
+### Why the difference?
+
+`selectRange` + `selectedString_` manipulates the editor's actual selection/cursor:
+```
+sclang → IDE → editor.setTextCursor() → triggers scroll-to-selection
+```
+
+`doc.string_` uses a separate internal cursor:
+```
+sclang → ScIDE.setTextByQUuid()
+      → handleSetDocTextScRequest (C++)
+      → document->setTextInRange()
+      → QTextCursor(mDoc)  ← separate cursor on QTextDocument
+      → cursor.insertText()  ← doesn't touch editor cursor
+```
+
+### Quick reference
+
+| Method | Moves cursor? | Scrolls view? | Use case |
+|--------|--------------|---------------|----------|
+| `selectRange` + `selectedString_` | Yes | Yes | User-visible edits |
+| `doc.string_(text, start, len)` | No | No | Background/stealth edits |
+
+**Rule:** For wildcard-style background mutations, always use `doc.string_` to avoid disrupting user focus.

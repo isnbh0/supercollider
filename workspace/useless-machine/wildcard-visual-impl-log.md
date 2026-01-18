@@ -420,11 +420,34 @@ tests/m46/test-workspace.scd
 | 4.6a | Single async mutation | PENDING | 2s delay, ~alpha only |
 | 4.6b | Rapid mutations (stress) | PENDING | 10 mutations, 0.3s apart |
 
+### Key Discovery: doc.string_ vs selectRange+selectedString_
+
+**Problem with M4.5 approach:**
+- `selectRange` + `selectedString_` moves cursor AND scrolls view
+- Even with cursor position save/restore, the view still scrolls
+
+**Solution discovered:**
+- `doc.string_(text, start, len)` does NOT move cursor or scroll view
+- Internally uses `prSetText` → `ScIDE.setTextByQUuid` → `setTextInRange` (C++)
+- `setTextInRange` creates a separate `QTextCursor` that doesn't affect the editor
+
+**Code path:**
+```
+sclang: doc.string_(text, start, len)
+    → prSetText(text, nil, start, len)
+    → ScIDE.setTextByQUuid(quuid, funcID, text, start, len)
+    → \setDocumentText message
+    → handleSetDocTextScRequest (C++)
+    → document->setTextInRange(text, start, range)
+    → QTextCursor on QTextDocument (not the editor's cursor)
+```
+
 ### Implementation Notes
 
-- Uses `~m46ReplacePreserveCursor` helper (adapted from M4.5)
+- Uses `~m46ReplaceNoCursorMove` helper with `doc.string_`
 - All mutations use `fork(AppClock)` for async scheduling
 - Includes RESET block to restore original controller values
+- **No cursor save/restore needed** with `doc.string_` approach
 
 ---
 
