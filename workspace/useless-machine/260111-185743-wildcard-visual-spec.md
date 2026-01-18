@@ -1041,10 +1041,71 @@ controllers.do {|name, i|
 3. **Defer to idle**: Only mutate when user hasn't typed for N ms
 
 **Milestone 4.5 Exit Criteria:**
-- [ ] Identify available SC Document APIs for non-cursor-moving edits
-- [ ] Implement cursor preservation wrapper
-- [ ] All 4 test cases pass
+- [x] Identify available SC Document APIs for non-cursor-moving edits
+- [x] Implement cursor preservation wrapper
+- [x] All 4 test cases pass
 - [ ] User can type while wildcard mutates without disruption
+
+---
+
+### Milestone 4.6: Async Cross-File Mutation (Observational Test)
+
+**Goal:** Verify that an async background process can mutate a document while the user is actively editing it, without visibly stealing cursor focus.
+
+**Problem:** M4.5 tests cursor preservation within a single execution context. The real wildcard scenario involves a background Routine mutating the same file the user is focused on. We need to verify the user's cursor doesn't visibly jump.
+
+**Key Insight:** This test cannot be fully automated. The user must observe whether their cursor moves when the async mutation fires. Programmatic checks happen in the same execution context and may miss visual cursor jumps.
+
+**Test Structure:**
+
+A single file containing both mutation targets and test code:
+
+```
+tests/m46/test-workspace.scd
+├── [TOP SECTION] Controller patterns (~alpha, ~beta, etc.)
+├── [MIDDLE] Padding text
+└── [BOTTOM SECTION] Test block that user executes
+```
+
+**Test Flow:**
+
+1. User opens `test-workspace.scd`
+2. User places cursor inside the test block (bottom section)
+3. User executes the test block
+4. Test block schedules async mutations (via `fork`) to the top section
+5. Mutations fire after delays (e.g., 1s, 2s, 3s)
+6. User **observes** whether their cursor visibly jumps to mutation sites
+7. User self-reports: cursor stayed = PASS, cursor jumped = FAIL
+
+**Test Code Pattern:**
+
+```supercollider
+// === TEST BLOCK (run this with cursor here) ===
+(
+"[M4.6] Starting async mutation test...".postln;
+"[M4.6] Keep your cursor HERE and watch for jumps!".postln;
+{
+    3.do { |i|
+        (i + 1).wait;
+        "[M4.6] Mutation % firing NOW...".format(i + 1).postln;
+        ~m46Mutate.(Document.current, "alpha", "MUT" ++ (i + 1));
+    };
+    "[M4.6] All mutations complete.".postln;
+    "[M4.6] Did your cursor stay in this block? PASS/FAIL".postln;
+}.fork(AppClock);
+)
+```
+
+**Why Observational:**
+- Programmatic `selectionStart` checks happen in the same context
+- The user's experience of "cursor jumped" is what matters for UX
+- Visual flicker/jump may not be captured by position checks
+
+**Milestone 4.6 Exit Criteria:**
+- [ ] Test file created with controller targets + test block
+- [ ] Async mutation helper uses cursor preservation from M4.5
+- [ ] User can run test and observe cursor behavior
+- [ ] Document results: does cursor stay put during async mutations?
 
 ---
 
@@ -1468,14 +1529,16 @@ If a milestone fails, try these alternatives:
 
 ## Implementation Checklist
 
-- [ ] Milestone 0: API Probing (all 6 tests pass)
-- [ ] Milestone 0.5: Coordinate System Discovery
-- [ ] Milestone 0.9: Position Converter Utility
-- [ ] Milestone 1: Read-only inspection
-- [ ] Milestone 1.5: Cross-file document manipulation (double-indirection)
-- [ ] Milestone 2: Single replacement
-- [ ] Milestone 3: Position tracking
-- [ ] Milestone 4: Repeated operations
+- [x] Milestone 0: API Probing (all 6 tests pass)
+- [x] Milestone 0.5: Coordinate System Discovery
+- [x] Milestone 0.9: Position Converter Utility
+- [x] Milestone 1: Read-only inspection
+- [x] Milestone 1.5: Cross-file document manipulation (double-indirection)
+- [x] Milestone 2: Single replacement
+- [x] Milestone 3: Position tracking
+- [x] Milestone 4: Repeated operations
+- [x] Milestone 4.5: Cursor preservation (same-document edits)
+- [ ] Milestone 4.6: Async mutation observational test
 - [ ] Milestone 5: Wildcard integration
 - [ ] Milestone 6: Error handling
 - [ ] Milestone 7: Async cross-file mutations

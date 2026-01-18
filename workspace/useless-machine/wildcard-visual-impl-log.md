@@ -362,10 +362,60 @@ The `~m45ReplacePreserveCursor` helper:
 
 | Test | Description | Status | Notes |
 |------|-------------|--------|-------|
-| 4.5a | Cursor before edit location | PENDING | Should stay in place |
-| 4.5b | Cursor after edit location | PENDING | Adjust for length change |
-| 4.5c | Cursor inside edit region | PENDING | Edge case |
-| 4.5d | Active selection preserved | PENDING | Selection, not just cursor |
+| 4.5a | Cursor before edit location | PASS | Cursor stays in place |
+| 4.5b | Cursor after edit location | PASS | Adjusted for length change |
+| 4.5c | Cursor inside edit region | PASS | Placed at end of new content |
+| 4.5d | Active selection preserved | PASS | Selection size maintained |
+
+### Bugs Fixed
+
+- **Probe 4.5.0c paren-finding bug**: Used `text.find(")")` which found first `)` in comments instead of matching close paren. Fixed by using paren-depth counting.
+- **Test 4.5b scoping bug**: `block` construct didn't allow inner assignments to affect outer scope. Rewrote without `block`.
+
+**Milestone 4.5 Complete** - Proceeding to Milestone 4.6.
+
+---
+
+## Milestone 4.6: Async Cross-File Mutation (Observational Test)
+
+**Status:** Not Started
+
+**Goal:** Verify that an async background process can mutate a document while the user is actively editing it, without visibly stealing cursor focus.
+
+**Problem:** M4.5 tests cursor preservation within a single execution context. The real wildcard scenario involves a background Routine mutating the same file the user is focused on.
+
+### Key Insight
+
+This test **cannot be fully automated**. The user must observe whether their cursor visibly jumps when the async mutation fires. Programmatic checks may miss visual cursor jumps.
+
+### Test Structure
+
+Single file containing both mutation targets and test code:
+
+```
+tests/m46/test-workspace.scd
+├── [TOP] Controller patterns (~alpha, ~beta, etc.) - mutation targets
+├── [MIDDLE] Padding text
+└── [BOTTOM] Test block that user executes - cursor stays here
+```
+
+### Test Flow
+
+1. User opens `test-workspace.scd`
+2. User places cursor inside the test block (bottom section)
+3. User executes the test block
+4. Test block schedules async mutations (via `fork`) to the top section
+5. Mutations fire after delays (e.g., 1s, 2s, 3s)
+6. User **observes** whether cursor visibly jumps
+7. User self-reports: cursor stayed = PASS, cursor jumped = FAIL
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 4.6a | Single async mutation | PENDING | Observational |
+| 4.6b | Multiple timed mutations | PENDING | 1s, 2s, 3s delays |
+| 4.6c | Rapid mutations | PENDING | Stress test |
 
 ---
 
@@ -460,8 +510,9 @@ The `~m45ReplacePreserveCursor` helper:
 6. ✓ M2: Single Text Replacement
 7. ✓ M3: Position Tracking After Insertion
 8. ✓ M4: Repeated Operations
-9. → M4.5: Cursor Preservation (IN PROGRESS - tests created)
-10. → M5: Integration with Wildcard (BLOCKED on M4.5)
-11. M6: Error Handling & Recovery
-12. M7: Async Cross-File Mutations
-13. M8: Reactive/Watching Mode
+9. ✓ M4.5: Cursor Preservation (COMPLETE)
+10. → M4.6: Async Mutation Observational Test (NEXT)
+11. → M5: Integration with Wildcard (BLOCKED on M4.6)
+12. M6: Error Handling & Recovery
+13. M7: Async Cross-File Mutations
+14. M8: Reactive/Watching Mode
