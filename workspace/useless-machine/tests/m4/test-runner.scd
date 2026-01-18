@@ -6,19 +6,25 @@
 // ============================================================
 
 // ============================================================
-// SETUP: Converter functions (duplicated from M09 for independence)
+// SETUP: Converter functions (from M09 with signed byte handling)
 // ============================================================
 
 (
-// UTF-8 byte length from leading byte
-~utf8ByteLength = { |leadingByte|
-    var b = leadingByte.asInteger;
+// UTF-8 byte length from leading byte (handles signed byte values)
+~utf8ByteLength = {|leadingByte|
+    var code = leadingByte.ascii;
     case
-        { b < 0x80 } { 1 }      // 0xxxxxxx - ASCII
-        { b < 0xC0 } { 1 }      // 10xxxxxx - continuation (error, treat as 1)
-        { b < 0xE0 } { 2 }      // 110xxxxx
-        { b < 0xF0 } { 3 }      // 1110xxxx
-        { true }     { 4 };     // 11110xxx
+        { code < 0 } {
+            var unsigned = code + 256;
+            case
+                { unsigned < 194 } { 1 }
+                { unsigned < 224 } { 2 }
+                { unsigned < 240 } { 3 }
+                { unsigned < 248 } { 4 }
+                { 1 };
+        }
+        { code < 128 } { 1 }
+        { 1 };
 };
 
 // UTF-16 units for a UTF-8 sequence (4-byte = surrogate pair = 2 units)
@@ -30,7 +36,8 @@
 ~byteToUtf16 = { |text, bytePos|
     var utf16Pos = 0;
     var i = 0;
-    while { i < bytePos } {
+    var textSize = text.size;
+    while { (i < bytePos) and: { i < textSize } } {
         var byteLen = ~utf8ByteLength.(text[i]);
         utf16Pos = utf16Pos + ~utf16UnitCount.(byteLen);
         i = i + byteLen;
