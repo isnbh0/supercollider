@@ -449,11 +449,58 @@ sclang: doc.string_(text, start, len)
 - Includes RESET block to restore original controller values
 - **No cursor save/restore needed** with `doc.string_` approach
 
+**Milestone 4.6 Complete** - Proceeding to Milestone 4.7.
+
+---
+
+## Milestone 4.7: Async Mutation + Code Execution (Observational Test)
+
+**Status:** Not Started
+
+**Goal:** Verify that a background process can mutate document text AND execute the modified code block without stealing cursor focus or scrolling the view.
+
+**Problem:** M4.6 proves stealth edits work. But the real wildcard needs to:
+1. Modify the controller value in the document
+2. Execute that code block so the audio actually changes
+
+**Key Questions:**
+1. Does `"code".interpret` steal focus?
+2. Does executing code that references `Document.current` cause issues?
+3. Can we execute a specific line/block without selecting it first?
+
+**Test File:** `tests/m47/test-workspace.scd` (to be created)
+
+### Test Approach
+
+```supercollider
+// Step 1: Stealth edit (proven in M4.6)
+doc.string_(newValue, utf16Start, utf16Len);
+
+// Step 2: Execute the code
+var code = "( ~alpha.(\"" ++ newValue ++ "\"))";
+code.interpret;
+```
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 4.7a | Single mutation + interpret | PENDING | Basic case |
+| 4.7b | Multiple mutations + interprets | PENDING | Sequence test |
+| 4.7c | Mutation with audio side-effect | PENDING | Verify code ran |
+
+### Exit Criteria
+
+- [ ] Test file created with executable controller patterns
+- [ ] Mutation + interpret works from background routine
+- [ ] User observes no focus/scroll steal during execution
+- [ ] Verify code actually ran (side effect observable)
+
 ---
 
 ## Milestone 5: Integration with Wildcard
 
-**Status:** In Progress
+**Status:** Not Started
 
 ---
 

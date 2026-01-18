@@ -1102,10 +1102,103 @@ tests/m46/test-workspace.scd
 - Visual flicker/jump may not be captured by position checks
 
 **Milestone 4.6 Exit Criteria:**
-- [ ] Test file created with controller targets + test block
-- [ ] Async mutation helper uses cursor preservation from M4.5
-- [ ] User can run test and observe cursor behavior
-- [ ] Document results: does cursor stay put during async mutations?
+- [x] Test file created with controller targets + test block
+- [x] Async mutation helper uses `doc.string_` (stealth edit)
+- [x] User can run test and observe cursor behavior
+- [x] Document results: cursor AND view stay put with `doc.string_`
+
+---
+
+### Milestone 4.7: Async Mutation + Code Execution (Observational Test)
+
+**Goal:** Verify that a background process can mutate document text AND execute the modified code block without stealing cursor focus or scrolling the view.
+
+**Problem:** M4.6 proves stealth edits work. But the real wildcard needs to:
+1. Modify the controller value in the document
+2. Execute that code block so the audio actually changes
+
+We need to verify that `.interpret` or similar execution doesn't steal focus.
+
+**Key Questions:**
+1. Does `"code".interpret` steal focus?
+2. Does executing code that references `Document.current` cause issues?
+3. Can we execute a specific line/block without selecting it first?
+
+**Test Structure:**
+
+Extends M4.6 test file:
+
+```
+tests/m47/test-workspace.scd
+├── [TOP] Controller patterns that actually DO something when executed
+├── [MIDDLE] Padding text
+└── [BOTTOM] Test block - mutate + execute
+```
+
+**Test Flow:**
+
+1. User opens `test-workspace.scd`
+2. User runs SETUP block
+3. User places cursor in TEST BLOCK (bottom)
+4. User runs test
+5. Background process:
+   - Mutates controller value (stealth edit)
+   - Builds code string from new value
+   - Executes code with `.interpret`
+6. User observes: cursor stays? view stays? code actually ran?
+
+**Execution Approaches to Test:**
+
+```supercollider
+// Approach A: Build and interpret code string
+var code = "( ~alpha.(\"" ++ newValue ++ "\"))";
+code.interpret;
+
+// Approach B: Use thisProcess.interpreter.executeFile (if applicable)
+
+// Approach C: Directly call the function with new value
+~alpha.(newValue);  // But this doesn't update the document
+```
+
+**Test Code Pattern:**
+
+```supercollider
+// === TEST BLOCK ===
+(
+"[M4.7] Mutation + Execution test".postln;
+{
+    var doc = Document.current;
+    3.do { |i|
+        var newValue = String.fill(i + 3, $.);
+        var code;
+
+        (i + 1).wait;
+
+        // Step 1: Stealth edit
+        ~m47Mutate.(doc, "alpha", newValue);
+
+        // Step 2: Execute
+        code = "( ~alpha.(\"" ++ newValue ++ "\"))";
+        "[M4.7] Executing: %".format(code).postln;
+        code.interpret;
+
+        "[M4.7] Mutation % complete - cursor still here?".format(i + 1).postln;
+    };
+    "[M4.7] All done. PASS if cursor never jumped.".postln;
+}.fork(AppClock);
+)
+```
+
+**Success Criteria:**
+- Cursor stays in test block throughout
+- View doesn't scroll to mutation site
+- Code actually executes (verify via post window or audio change)
+
+**Milestone 4.7 Exit Criteria:**
+- [ ] Test file created with executable controller patterns
+- [ ] Mutation + interpret works from background routine
+- [ ] User observes no focus/scroll steal during execution
+- [ ] Verify code actually ran (side effect observable)
 
 ---
 
@@ -1538,7 +1631,8 @@ If a milestone fails, try these alternatives:
 - [x] Milestone 3: Position tracking
 - [x] Milestone 4: Repeated operations
 - [x] Milestone 4.5: Cursor preservation (same-document edits)
-- [ ] Milestone 4.6: Async mutation observational test
+- [x] Milestone 4.6: Async mutation observational test (stealth edit via doc.string_)
+- [ ] Milestone 4.7: Async mutation + code execution
 - [ ] Milestone 5: Wildcard integration
 - [ ] Milestone 6: Error handling
 - [ ] Milestone 7: Async cross-file mutations
