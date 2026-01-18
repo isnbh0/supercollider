@@ -314,13 +314,40 @@ Initial test 4.7 (Unicode breadcrumbs) failed because the M4 converter used a si
 | 4.9 | Stress test (10 cycles) | PASS | Accumulating drift |
 | 4.10 | Minimal breadcrumb (3 bytes) | PASS | Edge case |
 
-**Milestone 4 Complete** - Proceeding to Milestone 5.
+**Milestone 4 Complete** - Proceeding to Milestone 4.5.
+
+---
+
+## Milestone 4.5: Cursor Preservation During Same-Document Edits
+
+**Status:** Not Started
+
+**Goal:** Modify document text without disrupting user's cursor position when editing the same document.
+
+**Problem:** `selectRange` + `selectedString_` moves cursor to edit location, disrupting user workflow.
+
+**Test File:** `tests/m45/` (to be created)
+
+### Research Questions
+
+1. Does SC have `setTextInRange` or similar non-cursor-moving API?
+2. Can save/restore `selectionStart`/`selectionSize` work reliably?
+3. How to adjust cursor position when replacement changes text length?
+
+### Test Cases
+
+| Test | Description | Status | Notes |
+|------|-------------|--------|-------|
+| 4.5a | Cursor before edit location | PENDING | Should stay in place |
+| 4.5b | Cursor after edit location | PENDING | Adjust for length change |
+| 4.5c | Cursor inside edit region | PENDING | Edge case |
+| 4.5d | Active selection preserved | PENDING | Selection, not just cursor |
 
 ---
 
 ## Milestone 5: Integration with Wildcard
 
-**Status:** Not Started
+**Status:** In Progress
 
 ---
 
@@ -409,7 +436,8 @@ Initial test 4.7 (Unicode breadcrumbs) failed because the M4 converter used a si
 6. ✓ M2: Single Text Replacement
 7. ✓ M3: Position Tracking After Insertion
 8. ✓ M4: Repeated Operations
-9. → M5: Integration with Wildcard (NEXT)
-10. M6: Error Handling & Recovery
-11. M7: Async Cross-File Mutations
-12. M8: Reactive/Watching Mode
+9. → M4.5: Cursor Preservation (NEXT)
+10. → M5: Integration with Wildcard (IN PROGRESS)
+11. M6: Error Handling & Recovery
+12. M7: Async Cross-File Mutations
+13. M8: Reactive/Watching Mode

@@ -1000,6 +1000,54 @@ controllers.do {|name, i|
 
 ---
 
+### Milestone 4.5: Cursor Preservation During Same-Document Edits
+
+**Goal:** Modify document text without disrupting user's cursor position when editing the same document.
+
+**Problem:** Current `selectRange` + `selectedString_` approach moves cursor to the edit location, disrupting user workflow when wildcard mutates a document they're actively editing.
+
+**Research Questions:**
+1. Does SC have a direct text replacement API (e.g., `setTextInRange`) that doesn't move cursor?
+2. Can we save/restore cursor position reliably?
+3. How do we handle cursor position adjustment when replacement changes text length?
+
+**Test 4.5a: Cursor position before edit location**
+```supercollider
+// User cursor at line 10, edit happens at line 50
+// Expected: cursor stays at line 10
+```
+
+**Test 4.5b: Cursor position after edit location**
+```supercollider
+// User cursor at line 50, edit happens at line 10
+// Expected: cursor stays at line 50 (adjusted for length change)
+```
+
+**Test 4.5c: Cursor inside edit region**
+```supercollider
+// User cursor inside the controller being mutated
+// Expected: reasonable behavior (cursor at end of new content?)
+```
+
+**Test 4.5d: User has active selection**
+```supercollider
+// User has text selected, edit happens elsewhere
+// Expected: selection preserved
+```
+
+**Potential Solutions:**
+1. **Save/restore**: `selectionStart`/`selectionSize` before, restore after (with offset adjustment)
+2. **Alternative API**: Check for `setTextInRange` or similar
+3. **Defer to idle**: Only mutate when user hasn't typed for N ms
+
+**Milestone 4.5 Exit Criteria:**
+- [ ] Identify available SC Document APIs for non-cursor-moving edits
+- [ ] Implement cursor preservation wrapper
+- [ ] All 4 test cases pass
+- [ ] User can type while wildcard mutates without disruption
+
+---
+
 ### Milestone 5: Integration with Wildcard
 
 **Goal:** Build a minimal wildcard-like system using proven utilities, then integrate into main wildcard.scd.
